@@ -302,7 +302,7 @@ export class SimulationEngine {
     this.nextAmbientAt.set(id, this.clock + rngRange(this.rng, minGap, maxGap));
     const label = LOCATIONS[spot].label;
     c.enqueue(
-      { kind: "move", to: spot, slot: profile.seat, activity: `Stretching legs at the ${label}`, ambient: true },
+      { kind: "move", to: spot, slot: profile.seat, activity: `Đi lại ở ${label}`, ambient: true },
       { kind: "call", fn: () => this.emit({ type: "agent.ambient", agentId: id, message: `${profile.name} đang ở ${label}`, feed: false, metadata: { location: spot } }), ambient: true },
       { kind: "wait", until: () => false, timeout: stay, activity: "Nghỉ giải lao", ambient: true },
       { kind: "move", to: home, activity: "Về bàn làm việc", ambient: true },
