@@ -14,10 +14,10 @@ export const SIM_CONFIG = {
   qaFailRate: 0.3,
   reviewChangeRate: 0, // Thư ký R&D không trả việc về; chỉ ghi bài học
   returnHomeDelay: 2.5,
-  /** Agent đang làm việc: thỉnh thoảng ra Góc giải lao. */
-  ambient: { minGap: 45, maxGap: 90, minStay: 5, maxStay: 8 },
-  /** Agent chưa giao nhiệm vụ: đi dạo thường xuyên. */
-  ambientFree: { minGap: 4, maxGap: 12, minStay: 6, maxStay: 14 },
+  /** Agent đã có nhiệm vụ, lúc rảnh: thỉnh thoảng ra Góc giải lao ngồi một lát, phần lớn thời gian ngồi yên ở bàn. */
+  ambient: { minGap: 90, maxGap: 180, minStay: 10, maxStay: 18 },
+  /** Agent chưa giao nhiệm vụ hoặc chưa dựng: ngồi yên ở phòng mình, lâu lâu ra Góc giải lao ngồi lâu rồi về. */
+  ambientFree: { minGap: 50, maxGap: 140, minStay: 40, maxStay: 80 },
   /** Minimum on-screen lifetime of a comm arc; a link lives max(talk duration, linkDuration). */
   linkDuration: 2.4,
   durations: {

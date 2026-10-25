@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import type { ComponentRef } from "react";
 import * as THREE from "three";
+import { MOUSE, TOUCH } from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { liveWorld, useWorldStore } from "@/state/useWorldStore";
@@ -75,8 +76,8 @@ function goalFor(request: CameraRequest, fit: number, overview: OverviewFrame, c
     tmpOffset.subVectors(camera.position, target);
     tmpSpherical.setFromVector3(tmpOffset);
     const distance = (request.distance ?? tmpSpherical.radius / fit) * fit;
-    // Keep the user's bearing, but never look along the floor when focusing something small.
-    return { target: t, theta: tmpSpherical.theta, phi: clampPhi(Math.min(tmpSpherical.phi, 1.05)), distance: clampDistance(distance) };
+    // Hướng nhìn cố định (theta 0, như mọi preset); never look along the floor when focusing something small.
+    return { target: t, theta: 0, phi: clampPhi(Math.min(tmpSpherical.phi, 1.05)), distance: clampDistance(distance) };
   }
   return null;
 }
@@ -328,8 +329,12 @@ export function CameraController() {
       minPolarAngle={CAMERA_LIMITS.minPolarAngle}
       maxPolarAngle={CAMERA_LIMITS.maxPolarAngle}
       zoomSpeed={0.8}
-      rotateSpeed={0.6}
-      panSpeed={0.8}
+      // Cảnh cố định hướng: không xoay; kéo chuột (trái hoặc phải) hay một ngón tay để trượt trên mặt sàn.
+      enableRotate={false}
+      screenSpacePanning={false}
+      mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
+      touches={{ ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN }}
+      panSpeed={1}
     />
   );
 }

@@ -7,13 +7,16 @@ export interface CameraPreset {
   target: readonly [number, number, number];
 }
 
-/** §6.6, authored for a wide, unobstructed view; `fitScale` stretches them for the actual free area. */
+/**
+ * §6.6, authored for a wide, unobstructed view; `fitScale` stretches them for the actual free area.
+ * Mọi góc nhìn cùng nhìn thẳng từ phía trước (camera x = target x), để đổi góc nhìn chỉ trượt và phóng, không xoay cảnh.
+ */
 export const CAMERA_PRESETS: Record<CameraPresetId, CameraPreset> = {
   overview: { id: "overview", label: "Toàn cảnh", position: [0, 35, 39.5], target: [0, 0, 1.2] },
-  hub: { id: "hub", label: "Manager & QA", position: [-2.4, 7.4, 7.6], target: [-3, 1, -4.6] },
-  development: { id: "development", label: "Phòng KT XDCB", position: [-13, 10, 18.5], target: [-14, 0.6, 6.4] },
-  research: { id: "research", label: "Kho lưu trữ", position: [-14.4, 6.4, 3.4], target: [-14.5, 0.6, -5.4] },
-  collaboration: { id: "collaboration", label: "Phòng họp", position: [9.5, 7.8, 5.2], target: [7.5, 0.5, -5] },
+  hub: { id: "hub", label: "Manager & QA", position: [-3, 7.4, 7.6], target: [-3, 1, -4.6] },
+  development: { id: "development", label: "Phòng KT XDCB", position: [-14, 10, 18.5], target: [-14, 0.6, 6.4] },
+  research: { id: "research", label: "Kho lưu trữ", position: [-14.5, 6.4, 3.4], target: [-14.5, 0.6, -5.4] },
+  collaboration: { id: "collaboration", label: "Phòng họp", position: [7.5, 7.8, 5.2], target: [7.5, 0.5, -5] },
 };
 
 export const CAMERA_PRESET_IDS: CameraPresetId[] = ["overview", "hub", "collaboration", "development", "research"];

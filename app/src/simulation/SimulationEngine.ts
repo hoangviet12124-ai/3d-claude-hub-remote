@@ -33,7 +33,7 @@ type EmitInput = Omit<AgentEvent, "id" | "timestamp" | "simTime" | "severity" | 
 };
 
 /** Agent chưa giao nhiệm vụ đi dạo nhiều nơi; agent đang làm thỉnh thoảng ra Góc giải lao. */
-const AMBIENT_SPOTS_FREE: LocationId[] = ["lounge", "view", "lounge"];
+const AMBIENT_SPOTS_FREE: LocationId[] = ["lounge"];
 const AMBIENT_SPOTS_BUSY: LocationId[] = ["lounge"];
 /** An toàn: không chờ ai quá lâu (giây mô phỏng), để không bao giờ kẹt cứng. */
 const WAIT_LIMIT = 240;
@@ -320,9 +320,9 @@ export class SimulationEngine {
     const stay = rngRange(this.rng, cfg.minStay, cfg.maxStay);
     this.nextAmbientAt.set(id, this.clock + rngRange(this.rng, cfg.minGap, cfg.maxGap));
     const label = LOCATIONS[spot].label;
-    const doing = spot === "view" ? "Ngắm phố qua cửa kính" : "Uống cà phê ở Góc giải lao";
+    const doing = spot === "view" ? "Ngắm phố qua cửa kính" : "Ngồi uống cà phê ở Góc giải lao";
     c.enqueue(
-      { kind: "move", to: spot, slot: profile.seat, activity: profile.active ? `Ra ${label} nghỉ một lát` : `Đi dạo (chưa giao nhiệm vụ)`, ambient: true },
+      { kind: "move", to: spot, slot: profile.seat, activity: profile.active ? `Ra ${label} nghỉ một lát` : `Ra ${label} ngồi (chưa giao nhiệm vụ)`, ambient: true },
       { kind: "call", fn: () => this.emit({ type: "agent.ambient", agentId: id, message: `${profile.name} đang ở ${label}`, feed: false, metadata: { location: spot } }), ambient: true },
       { kind: "wait", until: () => false, timeout: stay, activity: doing, ambient: true },
       { kind: "move", to: home, activity: "Về bàn làm việc", ambient: true },
