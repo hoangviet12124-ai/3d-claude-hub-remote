@@ -94,7 +94,7 @@ function StationHit({ id }: { id: StationId }) {
     <mesh
       geometry={geometries.box()}
       material={hitMaterial()}
-      position={[station.position.x, 0.75, station.position.z + 0.1]}
+      position={[station.position.x, 0.75, station.position.z + 0.1 * Math.cos(station.rotation)]}
       scale={[2.5, 1.5, 1.5]}
       {...handlers}
     />

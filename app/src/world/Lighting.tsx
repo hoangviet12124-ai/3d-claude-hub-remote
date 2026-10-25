@@ -16,11 +16,15 @@ import { useRenderCount } from "@/world/renderCounts";
  */
 
 const WARM_LIGHTS: [number, number, number][] = [
-  [-8.25, 3.2, -3],
-  [8.25, 3.2, -3],
-  [0, 3.4, -0.4],
-  [-5.5, 3.1, 5.4],
-  [7.5, 3.1, 6.1],
+  // Kho lưu trữ, phòng Manager + QA, phòng họp, phòng R&D
+  [-14.5, 3.2, -4.5],
+  [-3, 3.2, -4],
+  [7.5, 3.2, -5],
+  [16, 3.2, -4.5],
+  // Phòng KT XDCB, dãy phòng trước, góc giải lao
+  [-14, 3.1, 7.5],
+  [0, 3.1, 7.5],
+  [17, 3.1, 8.5],
 ];
 
 export function Lighting() {
@@ -44,17 +48,17 @@ export function Lighting() {
     const light = sun.current;
     if (!light) return;
     const cam = light.shadow.camera;
-    cam.left = -17;
-    cam.right = 17;
-    cam.top = 13;
-    cam.bottom = -13;
+    cam.left = -22;
+    cam.right = 22;
+    cam.top = 16;
+    cam.bottom = -16;
     cam.near = 2;
     cam.far = 48;
     cam.updateProjectionMatrix();
     light.shadow.radius = 4;
     light.shadow.bias = -0.0004;
     light.shadow.normalBias = 0.025;
-    light.target.position.set(0, 0, 1);
+    light.target.position.set(0, 0, 1.5);
     light.target.updateMatrixWorld();
   }, []);
 

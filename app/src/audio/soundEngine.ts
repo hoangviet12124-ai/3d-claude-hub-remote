@@ -23,7 +23,21 @@ export interface SoundSettings {
 }
 
 /** Each speaker's own pitch (Hz), so you can tell who is talking without looking. */
-export const AGENT_PITCH: Record<AgentId, number> = { orion: 523.25, piper: 659.25, iris: 587.33, kai: 440, quinn: 698.46, rex: 392 };
+export const AGENT_PITCH: Record<AgentId, number> = {
+  orion: 523.25,
+  piper: 659.25,
+  iris: 587.33,
+  kai: 440,
+  quinn: 698.46,
+  rex: 392,
+  troly1: 783.99,
+  troly2: 880,
+  taichinh: 349.23,
+  quytrinh: 493.88,
+  gopy: 554.37,
+  chuyende: 329.63,
+  caitien: 415.3,
+};
 
 /** Events older than this (history replayed on connect) never make a sound or raise attention. */
 export const STALE_EVENT_MS = 15_000;

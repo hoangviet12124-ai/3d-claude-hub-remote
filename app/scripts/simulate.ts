@@ -78,7 +78,8 @@ const comms = first.events.filter(isCommunication).length;
 check("≥ 7 agent-to-agent communications", comms >= 7, `${comms}`);
 const expectedOrder = "queued → intake → planning → research → implementation → testing → implementation → testing → review → done";
 check("phase order exact", phaseOrder(first.task) === expectedOrder, phaseOrder(first.task));
-check("completes in < 100 sim s", first.finishedAt < 100, `${first.finishedAt.toFixed(1)} s`);
+// Luồng của Tổ có họp giao việc và hai chuyến ra Kho trên mặt bằng 40 × 24 m, nên dài hơn bản gốc (100 s).
+check("completes in < 150 sim s", first.finishedAt < 150, `${first.finishedAt.toFixed(1)} s`);
 console.log(`    (demo finished at ${first.finishedAt.toFixed(1)} sim s, ${comms} communications)`);
 
 // 3 ───────────────────────────────────────────────

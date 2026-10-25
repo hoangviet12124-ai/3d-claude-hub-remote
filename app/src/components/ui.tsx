@@ -10,26 +10,26 @@ import type { Task, TaskPriority, TaskStatus, WorkflowPhase } from "@/tasks/task
 // ───────────────────────── labels + formatting ─────────────────────────
 
 export const PHASE_LABEL: Record<WorkflowPhase, string> = {
-  queued: "Queued",
-  intake: "Intake",
-  planning: "Planning",
-  research: "Research",
-  implementation: "Implementation",
-  testing: "Testing",
-  review: "Review",
-  done: "Done",
-  failed: "Failed",
+  queued: "Chờ nhận",
+  intake: "Họp giao việc",
+  planning: "Lập kế hoạch",
+  research: "Lấy tài liệu ở Kho",
+  implementation: "Soạn báo cáo",
+  testing: "QA kiểm tra",
+  review: "Manager tổng hợp",
+  done: "Xong",
+  failed: "Dừng",
 };
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
-  queued: "Queued",
-  assigned: "Assigned",
-  in_progress: "In progress",
-  testing: "Testing",
-  review: "Review",
-  blocked: "Blocked",
-  completed: "Completed",
-  failed: "Failed",
+  queued: "Chờ",
+  assigned: "Đã giao",
+  in_progress: "Đang làm",
+  testing: "QA kiểm tra",
+  review: "Tổng hợp",
+  blocked: "Tạm dừng",
+  completed: "Hoàn thành",
+  failed: "Dừng",
 };
 
 const STATUS_TONE: Record<TaskStatus, string> = {

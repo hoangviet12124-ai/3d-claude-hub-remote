@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { useFrame } from "@react-three/fiber";
-import { CORRIDOR_Z, FLOOR, LOCATIONS } from "@/simulation/worldLayout";
+import { CORRIDOR_Z, FLOOR, ROOMS } from "@/simulation/worldLayout";
 import { useWorldStore } from "@/state/useWorldStore";
 import { Instanced } from "@/world/Instanced";
 import type { InstanceSpec } from "@/world/Instanced";
@@ -35,8 +35,24 @@ function Floor() {
       <mesh geometry={geometries.floorPlane()} material={material} position={[0, 0, FLOOR_CENTER_Z]} scale={[FLOOR.width, 1, FLOOR.depth]} receiveShadow />
       {/* The corridor every route travels along. */}
       <mesh geometry={geometries.floorPlane()} material={corridor} position={[0, 0.004, CORRIDOR_Z]} scale={[FLOOR.width - 1, 1, 0.9]} />
+      <RoomFloors />
     </group>
   );
+}
+
+/** Thảm màu nhạt cho từng phòng, để nhìn từ xa vẫn phân biệt được phòng. Phòng chưa giao nhiệm vụ nhạt hơn. */
+function RoomFloors() {
+  const items = useMemo<InstanceSpec[]>(
+    () =>
+      ROOMS.map((r) => ({
+        p: [(r.x0 + r.x1) / 2, 0.003, (r.z0 + r.z1) / 2],
+        s: [r.x1 - r.x0 - 0.3, 1, r.z1 - r.z0 - 0.3],
+        c: r.note === "chưa giao nhiệm vụ" ? "#1a1f29" : r.color,
+      })),
+    [],
+  );
+  const mat = sharedMaterial("roomFloor", () => new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.07, depthWrite: false, toneMapped: false }));
+  return <Instanced name="room-floors" geometry={geometries.floorPlane()} material={mat} items={items} receiveShadow={false} />;
 }
 
 // ───────────────────────── walls + windows ─────────────────────────
@@ -183,15 +199,31 @@ interface Partition {
   axis: "x" | "z";
 }
 
-/** Low glass between zones. None of them crosses a corridor route (§5 `route`). */
-export const PARTITIONS: Partition[] = [
-  { x: -3.2, z: -3.5, length: 4, axis: "z" },
-  { x: 3.2, z: -3.5, length: 4, axis: "z" },
-  { x: -12.6, z: 1.7, length: 4, axis: "x" },
-  { x: 12.6, z: 1.7, length: 4, axis: "x" },
-  { x: -1.6, z: 7.6, length: 4.4, axis: "z" },
-  { x: 3.4, z: 7.6, length: 4.4, axis: "z" },
-];
+/**
+ * Vách kính thấp: vách ngăn giữa các phòng cạnh nhau, và ở mặt trước mỗi phòng hai đoạn ngắn ở hai góc (lối vào
+ * để trống ở giữa). Không vách nào cắt ngang đường đi (§5 `route`): đường đi chỉ chạy dọc hành lang và thẳng
+ * từ hành lang vào chỗ đứng.
+ */
+const STUB = 0.9;
+export const PARTITIONS: Partition[] = (() => {
+  const out: Partition[] = [];
+  const seen = new Set<string>();
+  for (const r of ROOMS) {
+    for (const x of [r.x0, r.x1]) {
+      if (x <= FLOOR.minX || x >= FLOOR.maxX) continue;
+      const key = `${x}|${r.z0}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ x, z: (r.z0 + r.z1) / 2, length: r.z1 - r.z0, axis: "z" });
+    }
+    if (!r.frontWall) continue;
+    // Mặt trước là cạnh giáp hành lang: z1 với dãy sau, z0 với dãy trước.
+    const z = r.z1 < CORRIDOR_Z ? r.z1 : r.z0;
+    out.push({ x: r.x0 + STUB / 2, z, length: STUB, axis: "x" });
+    out.push({ x: r.x1 - STUB / 2, z, length: STUB, axis: "x" });
+  }
+  return out;
+})();
 
 const PARTITION_H = 1.15;
 
@@ -226,18 +258,15 @@ function Partitions() {
 
 const PLANT_SPOTS: [number, number, number][] = [
   // x, z, size
-  [-14.2, -8.7, 1.15],
-  [14.2, -8.7, 1.15],
-  [-5.6, -8.6, 0.9],
-  [5.6, -8.6, 0.9],
-  [-14.2, 10.7, 1.1],
-  [14.2, 10.7, 1.1],
-  [-1.6, 10.3, 0.85],
-  [3.4, 10.3, 0.85],
-  [-14.3, 0.6, 0.8],
-  [14.3, 0.6, 0.8],
-  [-3.2, -0.9, 0.7],
-  [3.2, -0.9, 0.7],
+  [-19.3, -9.8, 1.0],
+  [-8.5, -9.8, 0.85],
+  [-3.5, -9.8, 0.85],
+  [2.5, -9.8, 0.85],
+  [19.3, -9.8, 1.0],
+  [-19.3, 12.9, 1.0],
+  [-7.6, 12.9, 0.85],
+  [13.6, 12.9, 0.85],
+  [19.3, 12.9, 1.0],
 ];
 
 function Plants() {
@@ -350,24 +379,17 @@ interface FloorLabelDef {
   size: number;
 }
 
-const ringCenter = (id: "collab" | "lounge") => {
-  const slots = LOCATIONS[id].slots;
-  return slots.reduce((a, s) => ({ x: a.x + s.x / slots.length, z: a.z + s.z / slots.length }), { x: 0, z: 0 });
-};
-
-export const FLOOR_LABELS: FloorLabelDef[] = [
-  ...(["ops", "research", "product", "dev", "testing", "review"] as const).map((id) => {
-    const slot = LOCATIONS[id].slots[0]!;
-    // Back-row labels shift outwards so the front-row desks (ops, review) never hide them.
-    const shift = id === "research" || id === "testing" ? 0.6 : id === "product" || id === "dev" ? -0.6 : 0;
-    const dx = slot.x < 0 ? -shift : shift;
-    return { text: LOCATIONS[id].label, x: slot.x + dx, z: slot.z + 0.9, size: id === "ops" || id === "review" ? 0.95 : 0.8 };
-  }),
-  { text: LOCATIONS.hub.label, x: 0, z: 1.95, size: 1.0 },
-  { text: LOCATIONS.planning.label, x: -11.4, z: 7.1, size: 0.95 },
-  { text: LOCATIONS.collab.label, x: ringCenter("collab").x, z: ringCenter("collab").z + 3.1, size: 1.0 },
-  { text: LOCATIONS.lounge.label, x: ringCenter("lounge").x, z: ringCenter("lounge").z + 3.8, size: 1.0 },
-];
+/** Tên phòng sát lối vào (phía hành lang); dòng phụ ("chưa giao nhiệm vụ") ngay dưới. */
+export const FLOOR_LABELS: FloorLabelDef[] = ROOMS.flatMap((r) => {
+  const back = r.z1 < CORRIDOR_Z;
+  const cx = (r.x0 + r.x1) / 2;
+  const width = r.x1 - r.x0;
+  const size = Math.min(1.15, (width - 0.6) / (3.2 * 1.25));
+  const z = back ? r.z1 - 0.75 : r.z0 + 0.75;
+  const out: FloorLabelDef[] = [{ text: r.label, x: cx, z, size }];
+  if (r.note) out.push({ text: r.note, x: cx, z: back ? z - 0.7 : z + 0.7, size: size * 0.75 });
+  return out;
+});
 
 const LABEL_SCALE = 1.25;
 

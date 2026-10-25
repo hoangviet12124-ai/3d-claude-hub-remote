@@ -9,21 +9,21 @@ export interface CameraPreset {
 
 /** §6.6, authored for a wide, unobstructed view; `fitScale` stretches them for the actual free area. */
 export const CAMERA_PRESETS: Record<CameraPresetId, CameraPreset> = {
-  overview: { id: "overview", label: "Overview", position: [-1.2, 20, 25], target: [-1.2, 0, 0.8] },
-  hub: { id: "hub", label: "Operations Hub", position: [0.6, 7.2, 9.6], target: [0, 1, -2.4] },
-  development: { id: "development", label: "Development", position: [8.2, 6.2, 5.6], target: [8.25, 0.6, -2.8] },
-  research: { id: "research", label: "Research", position: [-8.2, 6.2, 5.6], target: [-8.25, 0.6, -2.8] },
-  collaboration: { id: "collaboration", label: "Collaboration", position: [-3.2, 8.4, 15], target: [-6.8, 0.5, 4.6] },
+  overview: { id: "overview", label: "Toàn cảnh", position: [0, 35, 39.5], target: [0, 0, 1.2] },
+  hub: { id: "hub", label: "Manager & QA", position: [-2.4, 7.4, 7.6], target: [-3, 1, -4.6] },
+  development: { id: "development", label: "Phòng KT XDCB", position: [-13, 10, 18.5], target: [-14, 0.6, 6.4] },
+  research: { id: "research", label: "Kho lưu trữ", position: [-14.4, 6.4, 3.4], target: [-14.5, 0.6, -5.4] },
+  collaboration: { id: "collaboration", label: "Phòng họp", position: [9.5, 7.8, 5.2], target: [7.5, 0.5, -5] },
 };
 
-export const CAMERA_PRESET_IDS: CameraPresetId[] = ["overview", "hub", "research", "development", "collaboration"];
+export const CAMERA_PRESET_IDS: CameraPresetId[] = ["overview", "hub", "collaboration", "development", "research"];
 
 export const CAMERA_LIMITS = {
   minDistance: 3.5,
-  maxDistance: 70,
+  maxDistance: 85,
   minPolarAngle: 0.18,
   maxPolarAngle: 1.36,
-  target: { minX: -14, maxX: 14, minY: 0, maxY: 3, minZ: -8, maxZ: 10 },
+  target: { minX: -19, maxX: 19, minY: 0, maxY: 3, minZ: -10, maxZ: 13 },
 } as const;
 
 export const CAMERA_FOV = 40;

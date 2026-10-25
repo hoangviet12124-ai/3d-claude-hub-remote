@@ -110,8 +110,8 @@ export function OverviewPanel() {
               <span className="rounded-full border border-warn/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn">Simulated</span>
             </div>
             <p className="text-[12.5px] leading-relaxed text-mist-300">
-              <b className="text-mist-100">Run demo</b> chạy một vụ việc qua cả Tổ: Manager lập phiếu, Số hóa chuyển hồ sơ, Thủ thư tra văn bản, KT XDCB soạn nháp, QA trả về lần đầu, KT XDCB sửa, QA đạt, Thư ký R&amp;D
-              rút kinh nghiệm.
+              <b className="text-mist-100">Run demo</b> giả lập anh Việt gõ lệnh giao việc: Manager gọi KT XDCB và QA vào Phòng họp, KT XDCB lập kế hoạch, hai trợ lý ra Kho lấy văn bản và
+              hồ sơ cũ, KT XDCB soạn báo cáo, trợ lý đưa sang QA, QA trả về lần đầu rồi đạt, Manager gửi anh duyệt, Thư ký R&amp;D ghi bài học.
             </p>
             <ScenarioButtons />
             <p className="text-[11.5px] leading-snug text-mist-500">

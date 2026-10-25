@@ -3,13 +3,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { getAgent } from "@/agents/AgentRegistry";
-import type { AgentId, AgentState } from "@/agents/agentTypes";
+import { AGENTS, getAgent } from "@/agents/AgentRegistry";
+import type { AgentId, AgentState, AgentStatus } from "@/agents/agentTypes";
 import type { LiveWorldState } from "@/integrations/AgentBackend";
 import { PHASE_LABEL } from "@/components/ui";
 import { isTerminal } from "@/simulation/WorkflowStateMachine";
 import { shortTitle } from "@/simulation/workContent";
-import { HUB_CENTER, LOCATIONS, MISSION_CONTROL } from "@/simulation/worldLayout";
+import { FLOOR, HUB_CENTER, LOCATIONS, LOUNGE_CENTER, MEETING_CENTER, MISSION_CONTROL } from "@/simulation/worldLayout";
 import { liveWorld, useWorldStore } from "@/state/useWorldStore";
 import type { Task } from "@/tasks/taskTypes";
 import { Instanced } from "@/world/Instanced";
@@ -97,22 +97,32 @@ function useDeskParts() {
     const bases: InstanceSpec[] = [];
     for (const s of STATIONS) {
       const { x, z } = s.position;
-      slabs.push({ p: [x, DESK_TOP_Y, z] });
-      for (const sx of [-0.98, 0.98]) for (const sz of [-0.4, 0.4]) legs.push({ p: [x + sx, DESK_TOP_Y / 2, z + sz], s: [0.06, DESK_TOP_Y, 0.06] });
-      panels.push({ p: [x, 0.47, z - 0.4], s: [1.9, 0.42, 0.025] });
-      for (const m of monitorLayout(s.monitors)) {
-        const [mx, mz] = place(x + m.dx, z + MONITOR_Z, 0, 0, 0);
-        bezels.push({ p: [mx, MONITOR_Y, mz], r: [0, m.ry, 0], s: [0.64, 0.4, 0.035] });
-        const [px, pz] = place(mx, mz, m.ry, 0, -0.04);
-        stands.push({ p: [px, 0.94, pz], s: [0.04, 0.3, 0.04] });
-        feet.push({ p: [px, DESK_TOP_Y + 0.045, pz], r: [0, m.ry, 0], s: [0.24, 0.015, 0.15] });
+      const R = s.rotation;
+      // Desk-local (lx, lz) → world; +lz is the side the agent stands on.
+      const at = (lx: number, lz: number) => place(x, z, R, lx, lz);
+      slabs.push({ p: [x, DESK_TOP_Y, z], r: [0, R, 0] });
+      for (const sx of [-0.98, 0.98]) for (const sz of [-0.4, 0.4]) {
+        const [lx, lz] = at(sx, sz);
+        legs.push({ p: [lx, DESK_TOP_Y / 2, lz], s: [0.06, DESK_TOP_Y, 0.06] });
       }
-      keyboards.push({ p: [x - 0.05, DESK_TOP_Y + 0.045, z + 0.2], s: [0.52, 0.02, 0.17] });
-      mugs.push({ p: [x + 0.82, DESK_TOP_Y + 0.085, z + 0.22], s: [0.08, 0.1, 0.08] });
-      strips.push({ p: [x, DESK_TOP_Y - 0.02, z + 0.477], s: [1.95, 0.012, 0.012], c: getAgent(s.owner).color });
+      const [px0, pz0] = at(0, -0.4);
+      panels.push({ p: [px0, 0.47, pz0], r: [0, R, 0], s: [1.9, 0.42, 0.025] });
+      for (const m of monitorLayout(s.monitors)) {
+        const [mx, mz] = at(m.dx, MONITOR_Z);
+        bezels.push({ p: [mx, MONITOR_Y, mz], r: [0, R + m.ry, 0], s: [0.64, 0.4, 0.035] });
+        const [px, pz] = place(mx, mz, R + m.ry, 0, -0.04);
+        stands.push({ p: [px, 0.94, pz], s: [0.04, 0.3, 0.04] });
+        feet.push({ p: [px, DESK_TOP_Y + 0.045, pz], r: [0, R + m.ry, 0], s: [0.24, 0.015, 0.15] });
+      }
+      const [kx, kz] = at(-0.05, 0.2);
+      keyboards.push({ p: [kx, DESK_TOP_Y + 0.045, kz], r: [0, R, 0], s: [0.52, 0.02, 0.17] });
+      const [ux, uz] = at(0.82, 0.22);
+      mugs.push({ p: [ux, DESK_TOP_Y + 0.085, uz], s: [0.08, 0.1, 0.08] });
+      const [sx0, sz0] = at(0, 0.477);
+      strips.push({ p: [sx0, DESK_TOP_Y - 0.02, sz0], r: [0, R, 0], s: [1.95, 0.012, 0.012], c: getAgent(s.owner).color });
       // Chair pushed back and turned aside, clear of the stand slot 1.2 m in front of the desk.
-      const cr = 0.55;
-      const [cx, cz] = [x + 0.78, z + 0.72];
+      const cr = R + 0.55;
+      const [cx, cz] = at(0.78, 0.72);
       seats.push({ p: [cx, 0.48, cz], r: [0, cr, 0], s: [0.5, 0.08, 0.48] });
       const [bx, bz] = place(cx, cz, cr, 0, 0.24);
       backs.push({ p: [bx, 0.8, bz], r: [-0.12, cr, 0], s: [0.48, 0.52, 0.07] });
@@ -152,9 +162,11 @@ function DeskScreens({ station }: { station: StationDef }) {
   useRenderCount("DeskScreens");
   const items = useMemo<InstanceSpec[]>(() => {
     const { x, z } = station.position;
+    const R = station.rotation;
     return monitorLayout(station.monitors).map((m) => {
-      const [sx, sz] = place(x + m.dx, z + MONITOR_Z, m.ry, 0, 0.019);
-      return { p: [sx, MONITOR_Y + 0.005, sz], r: [0, m.ry, 0], s: [0.6, 0.355, 1] };
+      const [mx, mz] = place(x, z, R, m.dx, MONITOR_Z);
+      const [sx, sz] = place(mx, mz, R + m.ry, 0, 0.019);
+      return { p: [sx, MONITOR_Y + 0.005, sz], r: [0, R + m.ry, 0], s: [0.6, 0.355, 1] };
     });
   }, [station]);
 
@@ -235,7 +247,7 @@ function DeskHighlight({ station }: { station: StationDef }) {
       ref={ref}
       geometry={geometries.floorPlane()}
       material={material}
-      position={[station.position.x, 0.012, station.position.z + 0.3]}
+      position={[station.position.x, 0.012, station.position.z + 0.3 * Math.cos(station.rotation)]}
       scale={[3.6, 1, 2.6]}
       visible={false}
       renderOrder={1}
@@ -373,11 +385,11 @@ function drawMissionControl(g: CanvasRenderingContext2D, allTasks: readonly Task
   g.fillStyle = "#7c8797";
   g.font = `600 17px ${font}`;
   g.textAlign = "left";
-  g.fillText(`MISSION CONTROL  ·  ${simulated ? "SIMULATION · NO LIVE INFERENCE" : view.following ?? "LIVE BACKEND"}`, 28, 38);
+  g.fillText(`BẢNG VỤ VIỆC  ·  ${simulated ? "MÔ PHỎNG · KHÔNG GỌI AI" : view.following ?? "DỮ LIỆU THẬT"}`, 28, 38);
   const done = tasks.filter((t) => t.phase === "done").length;
   const open = tasks.filter((t) => !isTerminal(t.phase)).length;
   g.textAlign = "right";
-  g.fillText(`${done} shipped · ${open} open`, MC_W - 28, 38);
+  g.fillText(`${done} xong · ${open} đang làm`, MC_W - 28, 38);
   g.textAlign = "left";
   g.fillStyle = "rgba(124,196,214,0.25)";
   g.fillRect(28, 50, MC_W - 56, 1);
@@ -391,10 +403,10 @@ function drawMissionControl(g: CanvasRenderingContext2D, allTasks: readonly Task
   if (active.length === 0) {
     g.fillStyle = "#b7c1cf";
     g.font = `500 26px ${font}`;
-    g.fillText(simulated ? "No task in flight." : "Waiting for the live session…", 28, 120);
+    g.fillText(simulated ? "Chưa có vụ việc." : "Đang chờ phiên làm việc…", 28, 120);
     g.fillStyle = "#7c8797";
     g.font = `500 18px ${font}`;
-    g.fillText(simulated ? "Press Run demo, or create a task, to watch the team pick it up." : "Tasks appear here as the backend reports them.", 28, 152);
+    g.fillText(simulated ? "Bấm Run demo hoặc New task để giao việc cho Manager." : "Vụ việc hiện ở đây khi có dữ liệu.", 28, 152);
   }
   active.forEach((t, i) => {
     const y = 88 + i * 48;
@@ -404,9 +416,9 @@ function drawMissionControl(g: CanvasRenderingContext2D, allTasks: readonly Task
     g.fillText(`${t.id}  ${shortTitle(t.title, 44)}`, 28, y);
     g.fillStyle = t.status === "blocked" ? "#f2b46a" : owner ? owner.color : "#7c8797";
     g.font = `500 16px ${font}`;
-    const phase = t.status === "blocked" ? "Blocked" : PHASE_LABEL[t.phase];
+    const phase = t.status === "blocked" ? "Tạm dừng" : PHASE_LABEL[t.phase];
     g.textAlign = "right";
-    g.fillText(`${phase}${owner ? ` · ${owner.name}` : ""}${t.iteration > 1 ? ` · rework ${t.iteration - 1}` : ""}`, MC_W - 28, y);
+    g.fillText(`${phase}${owner ? ` · ${owner.name}` : ""}${t.iteration > 1 ? ` · làm lại ${t.iteration - 1}` : ""}`, MC_W - 28, y);
     g.textAlign = "left";
     g.fillStyle = "#1c2534";
     g.fillRect(28, y + 10, MC_W - 56, 6);
@@ -417,13 +429,14 @@ function drawMissionControl(g: CanvasRenderingContext2D, allTasks: readonly Task
   // Agent status row
   g.fillStyle = "rgba(124,196,214,0.18)";
   g.fillRect(28, MC_H - 58, MC_W - 56, 1);
-  const ids: AgentId[] = ["orion", "piper", "iris", "kai", "quinn", "rex"];
+  const ids: AgentId[] = AGENTS.filter((p) => p.active).map((p) => p.id);
+  const step = (MC_W - 56) / ids.length;
   // A status strip, drawn as screen UI (colour bar, caps name, status under it) rather than "● Name · status":
   // close up, the old one-line form read as stray DOM speech bubbles floating over the scene (phase 6).
   ids.forEach((id, i) => {
     const p = getAgent(id);
     const a = agents.find((x) => x.id === id);
-    const x = 28 + i * 163;
+    const x = 28 + i * step;
     g.fillStyle = p.color;
     g.fillRect(x, MC_H - 48, 3, 34);
     g.fillStyle = "#7f8a9b";
@@ -431,9 +444,19 @@ function drawMissionControl(g: CanvasRenderingContext2D, allTasks: readonly Task
     g.fillText(p.name.toUpperCase(), x + 12, MC_H - 36);
     g.fillStyle = "#c9d2de";
     g.font = `500 15px ${font}`;
-    g.fillText(a ? (a.paused ? "paused" : a.status) : "offline", x + 12, MC_H - 16);
+    g.fillText(a ? (a.paused ? "tạm dừng" : STATUS_VI[a.status]) : "ngoại tuyến", x + 12, MC_H - 16);
   });
 }
+
+const STATUS_VI: Record<AgentStatus, string> = {
+  idle: "rảnh",
+  walking: "đang đi",
+  working: "đang làm",
+  thinking: "đang nghĩ",
+  communicating: "đang trao đổi",
+  success: "xong",
+  error: "trả về",
+};
 
 function MissionControl() {
   useRenderCount("MissionControl");
@@ -473,7 +496,7 @@ function MissionControl() {
   });
 
   const { x, z } = MISSION_CONTROL;
-  const W = 9;
+  const W = 7;
   const H = W * (MC_H / MC_W);
   const frame = useMemo<InstanceSpec[]>(
     () => [
@@ -481,7 +504,7 @@ function MissionControl() {
       { p: [x - W / 2 + 0.6, 4.05, z - 0.12], s: [0.06, 0.95, 0.06] },
       { p: [x + W / 2 - 0.6, 4.05, z - 0.12], s: [0.06, 0.95, 0.06] },
       // low console under the screen
-      { p: [x, 0.4, z + 0.15], s: [6.4, 0.8, 0.55] },
+      { p: [x, 0.4, z + 0.15], s: [5.2, 0.8, 0.55] },
     ],
     [x, z, H],
   );
@@ -490,14 +513,14 @@ function MissionControl() {
     <group name="mission-control">
       <Instanced geometry={geometries.box()} material={materials.wallTrim()} items={frame} castShadow />
       <mesh ref={screenRef} geometry={geometries.plane()} material={material} position={[x, 2.35, z - 0.02]} scale={[W, H, 1]} />
-      <mesh geometry={geometries.box()} material={consoleGlow} position={[x, 0.81, z + 0.43]} scale={[6.3, 0.012, 0.012]} />
+      <mesh geometry={geometries.box()} material={consoleGlow} position={[x, 0.81, z + 0.43]} scale={[5.1, 0.012, 0.012]} />
     </group>
   );
 }
 
 // ───────────────────────── planning board ─────────────────────────
 
-const BOARD = { x: -12.6, z: 4.9, y: 1.55, w: 2.9, h: 1.8 };
+const BOARD = { x: FLOOR.minX + 0.4, z: LOCATIONS.planning.slots[0]!.z, y: 1.55, w: 2.9, h: 1.8 };
 export const MAX_STICKIES = 24;
 const STICKY_PENDING = "#ffd98a";
 const STICKY_DONE = "#9fe3b8";
@@ -517,19 +540,19 @@ function drawBoard(g: CanvasRenderingContext2D, w: number, h: number, task: Task
   g.font = `700 22px ${font}`;
   g.textAlign = "left";
   g.textBaseline = "alphabetic";
-  g.fillText("PLANNING BOARD", 22, 36);
+  g.fillText("KẾ HOẠCH KIỂM TRA", 22, 36);
   g.font = `500 16px ${font}`;
   g.fillStyle = "#5b6678";
   g.textAlign = "right";
-  g.fillText(task ? `${task.id} · ${shortTitle(task.title, 30)}` : "Waiting for a plan", w - 22, 36);
+  g.fillText(task ? `${task.id} · ${shortTitle(task.title, 26)}` : "Chưa có kế hoạch", w - 22, 36);
   g.textAlign = "left";
   g.fillStyle = "#c7ced9";
   g.fillRect(22, 50, w - 44, 2);
   g.fillRect(w / 2 - 1, 62, 2, h - 80);
   g.fillStyle = "#7c8797";
   g.font = `600 15px ${font}`;
-  g.fillText("PLANNED", 24, 76);
-  g.fillText("DONE", w / 2 + 14, 76);
+  g.fillText("CẦN LÀM", 24, 76);
+  g.fillText("ĐÃ XONG", w / 2 + 14, 76);
 }
 
 /** Sticky slot (board-local, metres from the board centre; u to the right as seen from the front). */
@@ -625,66 +648,120 @@ function PlanningBoard() {
   );
 }
 
-// ───────────────────────── collaboration table + lounge ─────────────────────────
+// ───────────────────────── meeting table + lounge + archive shelves ─────────────────────────
 
-function ringCenter(id: "collab" | "lounge"): { x: number; z: number } {
-  const slots = LOCATIONS[id].slots;
-  return slots.reduce((a, s) => ({ x: a.x + s.x / slots.length, z: a.z + s.z / slots.length }), { x: 0, z: 0 });
-}
-
-/** Seat i of a ring, pushed out to `radius`, using the same angles as the stand slots (§5). */
-function ringSeat(id: "collab" | "lounge", i: number, radius: number): { x: number; z: number; angle: number } {
-  const c = ringCenter(id);
-  const angle = (i / LOCATIONS[id].slots.length) * Math.PI * 2;
-  return { x: c.x + Math.sin(angle) * radius, z: c.z + Math.cos(angle) * radius, angle };
-}
-
-function CollabTable() {
-  const c = ringCenter("collab");
+/** Bàn họp tròn, ghế đặt sau từng chỗ đứng (§5 `collab`). */
+function MeetingTable() {
+  const c = MEETING_CENTER;
   const parts = useMemo(() => {
-    const stools: InstanceSpec[] = [];
-    const stoolPosts: InstanceSpec[] = [];
-    for (let i = 0; i < 6; i++) {
-      const s = ringSeat("collab", i, 2.4);
-      stools.push({ p: [s.x, 0.5, s.z], s: [0.44, 0.08, 0.44] });
-      stoolPosts.push({ p: [s.x, 0.25, s.z], s: [0.07, 0.48, 0.07] });
+    const seats: InstanceSpec[] = [];
+    const backs: InstanceSpec[] = [];
+    for (const slot of LOCATIONS.collab.slots) {
+      const a = Math.atan2(slot.x - c.x, slot.z - c.z);
+      const x = c.x + Math.sin(a) * 2.45;
+      const z = c.z + Math.cos(a) * 2.45;
+      seats.push({ p: [x, 0.46, z], r: [0, a, 0], s: [0.52, 0.08, 0.5] });
+      const [bx, bz] = place(x, z, a, 0, 0.24);
+      backs.push({ p: [bx, 0.78, bz], r: [-0.1, a, 0], s: [0.5, 0.56, 0.07] });
     }
-    return { stools, stoolPosts };
-  }, []);
+    return { seats, backs };
+  }, [c]);
   return (
-    <group name="collab-table">
+    <group name="meeting-table">
       <mesh geometry={geometries.cylinder()} material={materials.wood()} position={[c.x, 0.76, c.z]} scale={[2.1, 0.06, 2.1]} castShadow receiveShadow />
       <mesh geometry={geometries.cylinder()} material={materials.darkMetal()} position={[c.x, 0.38, c.z]} scale={[0.22, 0.76, 0.22]} castShadow />
       <mesh geometry={geometries.cylinder()} material={materials.darkMetal()} position={[c.x, 0.02, c.z]} scale={[1.0, 0.04, 1.0]} receiveShadow />
-      <Instanced geometry={geometries.cylinder()} material={materials.fabric()} items={parts.stools} castShadow />
-      <Instanced geometry={geometries.cylinderLow()} material={materials.metal()} items={parts.stoolPosts} />
+      <Instanced geometry={geometries.roundedBox()} material={materials.fabric()} items={parts.seats} castShadow />
+      <Instanced geometry={geometries.roundedBox()} material={materials.fabric()} items={parts.backs} castShadow />
     </group>
   );
 }
 
+/** Góc giải lao: sofa ở nửa vòng phía trong, chỗ đứng ở nửa phía hành lang. */
 function Lounge() {
-  const c = ringCenter("lounge");
+  const c = LOUNGE_CENTER;
   const parts = useMemo(() => {
     const seats: InstanceSpec[] = [];
     const backs: InstanceSpec[] = [];
-    for (let i = 0; i < 6; i++) {
-      const s = ringSeat("lounge", i, 2.85);
-      seats.push({ p: [s.x, 0.2, s.z], r: [0, s.angle, 0], s: [1.25, 0.36, 0.62] });
-      const [bx, bz] = place(s.x, s.z, s.angle, 0, 0.3);
-      backs.push({ p: [bx, 0.42, bz], r: [0, s.angle, 0], s: [1.25, 0.5, 0.18] });
+    for (const deg of [-55, 0, 55]) {
+      const a = (deg * Math.PI) / 180;
+      const x = c.x + Math.sin(a) * 2.6;
+      const z = c.z + Math.cos(a) * 2.6;
+      const face = a + Math.PI;
+      seats.push({ p: [x, 0.2, z], r: [0, face, 0], s: [1.35, 0.36, 0.62] });
+      const [bx, bz] = place(x, z, face, 0, -0.3);
+      backs.push({ p: [bx, 0.42, bz], r: [0, face, 0], s: [1.35, 0.5, 0.18] });
     }
     return { seats, backs };
-  }, []);
+  }, [c]);
   const rug = sharedMaterial("rug", () => new THREE.MeshStandardMaterial({ color: "#1d2433", roughness: 0.95, metalness: 0 }));
   return (
     <group name="lounge">
-      <mesh geometry={geometries.disc()} material={rug} position={[c.x, 0.006, c.z]} scale={3.5} receiveShadow />
-      <mesh geometry={geometries.cylinder()} material={materials.wood()} position={[c.x, 0.4, c.z]} scale={[1.7, 0.05, 1.7]} castShadow receiveShadow />
-      <mesh geometry={geometries.cylinder()} material={materials.darkMetal()} position={[c.x, 0.2, c.z]} scale={[1.2, 0.36, 1.2]} castShadow />
+      <mesh geometry={geometries.disc()} material={rug} position={[c.x, 0.006, c.z]} scale={3.3} receiveShadow />
+      <mesh geometry={geometries.cylinder()} material={materials.wood()} position={[c.x, 0.4, c.z]} scale={[1.5, 0.05, 1.5]} castShadow receiveShadow />
+      <mesh geometry={geometries.cylinder()} material={materials.darkMetal()} position={[c.x, 0.2, c.z]} scale={[1.0, 0.36, 1.0]} castShadow />
       <Instanced geometry={geometries.roundedBox()} material={materials.fabricWarm()} items={parts.seats} castShadow />
       <Instanced geometry={geometries.roundedBox()} material={materials.fabricWarm()} items={parts.backs} castShadow />
     </group>
   );
+}
+
+/**
+ * Kho lưu trữ: hai dãy kệ sát tường sau, mỗi ô có khối "tài nguyên nghiên cứu" phát sáng (xanh lá: văn bản,
+ * xanh ngọc: hồ sơ cũ đã số hóa). Khối sáng hơn khi Thủ thư hoặc Số hóa đang làm việc.
+ */
+function ArchiveShelves() {
+  const SHELF_Z = FLOOR.minZ + 0.55;
+  const { frames, boxes } = useMemo(() => {
+    const frames: InstanceSpec[] = [];
+    const boxes: InstanceSpec[] = [];
+    const units = [
+      { x0: -19.5, x1: -14.6, color: getAgent("iris").color },
+      { x0: -14.2, x1: -9.5, color: getAgent("piper").color },
+    ];
+    units.forEach((u, ui) => {
+      const cx = (u.x0 + u.x1) / 2;
+      const w = u.x1 - u.x0;
+      frames.push({ p: [cx, 1.25, SHELF_Z - 0.25], s: [w, 2.5, 0.06] });
+      for (const x of [u.x0, u.x1]) frames.push({ p: [x, 1.25, SHELF_Z], s: [0.06, 2.5, 0.55] });
+      for (let row = 0; row < 4; row++) {
+        const y = 0.25 + row * 0.6;
+        frames.push({ p: [cx, y, SHELF_Z], s: [w, 0.04, 0.55] });
+        const n = Math.floor(w / 0.42);
+        for (let k = 0; k < n; k++) {
+          if (hash01(ui, row, k) < 0.25) continue;
+          const h = 0.22 + hash01(ui, row, k + 50) * 0.22;
+          boxes.push({ p: [u.x0 + 0.25 + k * 0.42, y + 0.02 + h / 2, SHELF_Z], s: [0.3, h, 0.36], c: u.color });
+        }
+      }
+    });
+    return { frames, boxes };
+  }, [SHELF_Z]);
+  const boxMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.55, toneMapped: false }), []);
+  useEffect(() => () => boxMat.dispose(), [boxMat]);
+  const boxesRef = useRef<THREE.InstancedMesh>(null);
+  useFrame((_, rawDt) => {
+    const mesh = boxesRef.current;
+    if (!mesh) return;
+    const mat = mesh.material as THREE.MeshBasicMaterial;
+    const dt = Math.min(rawDt, 0.1);
+    const busy = (["iris", "piper", "troly1", "troly2"] as AgentId[]).some((id) => {
+      const a = agentOf(id);
+      return !!a && (a.location === "research" || a.location === "product" || a.location === "kho_vb" || a.location === "kho_hs") && a.status !== "idle";
+    });
+    mat.opacity = THREE.MathUtils.damp(mat.opacity, busy ? 0.95 : 0.5, 3, dt);
+  });
+  return (
+    <group name="archive-shelves">
+      <Instanced geometry={geometries.box()} material={materials.darkMetal()} items={frames} castShadow />
+      <Instanced meshRef={boxesRef} geometry={geometries.box()} material={boxMat} items={boxes} receiveShadow={false} />
+    </group>
+  );
+}
+
+function hash01(a: number, b: number, c: number): number {
+  const v = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453;
+  return v - Math.floor(v);
 }
 
 export function Workstations() {
@@ -695,8 +772,9 @@ export function Workstations() {
       <OperationsHub />
       <MissionControl />
       <PlanningBoard />
-      <CollabTable />
+      <MeetingTable />
       <Lounge />
+      <ArchiveShelves />
     </group>
   );
 }
