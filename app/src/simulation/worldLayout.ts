@@ -47,16 +47,16 @@ function ring(center: Vec2, radius: number, count: number): { slots: Vec2[]; fac
 const single = (x: number, z: number, facing: number) => ({ slots: [{ x, z }], facing: [facing] });
 
 export const LOCATIONS: Record<LocationId, LocationDef> = {
-  hub: { id: "hub", label: "Operations Hub", zone: "operations", ...single(0, 1.15, Math.PI) },
-  ops: { id: "ops", label: "Ops Console", zone: "research", ...single(-8.25, 0.05, Math.PI) },
-  research: { id: "research", label: "Research Station", zone: "research", ...single(-10, -3.75, Math.PI) },
-  product: { id: "product", label: "Product Station", zone: "research", ...single(-6.5, -3.75, Math.PI) },
-  dev: { id: "dev", label: "Engineering Station", zone: "development", ...single(6.5, -3.75, Math.PI) },
-  testing: { id: "testing", label: "QA Lab", zone: "development", ...single(10, -3.75, Math.PI) },
-  review: { id: "review", label: "Review Station", zone: "development", ...single(8.25, 0.05, Math.PI) },
+  hub: { id: "hub", label: "Bàn điều phối", zone: "operations", ...single(0, 1.15, Math.PI) },
+  ops: { id: "ops", label: "Bàn Manager", zone: "research", ...single(-8.25, 0.05, Math.PI) },
+  research: { id: "research", label: "Kho văn bản", zone: "research", ...single(-10, -3.75, Math.PI) },
+  product: { id: "product", label: "Bàn Số hóa", zone: "research", ...single(-6.5, -3.75, Math.PI) },
+  dev: { id: "dev", label: "Phòng KT XDCB", zone: "development", ...single(6.5, -3.75, Math.PI) },
+  testing: { id: "testing", label: "Phòng QA", zone: "development", ...single(10, -3.75, Math.PI) },
+  review: { id: "review", label: "Phòng R&D", zone: "development", ...single(8.25, 0.05, Math.PI) },
   planning: {
     id: "planning",
-    label: "Planning Board",
+    label: "Bảng số hóa",
     zone: "collaboration",
     slots: [
       { x: -11.4, z: 4.2 },
@@ -64,8 +64,8 @@ export const LOCATIONS: Record<LocationId, LocationDef> = {
     ],
     facing: [-Math.PI / 2, -Math.PI / 2],
   },
-  collab: { id: "collab", label: "Collaboration Table", zone: "collaboration", ...ring({ x: -5, z: 5.6 }, 1.75, 6) },
-  lounge: { id: "lounge", label: "Meeting Lounge", zone: "collaboration", ...ring({ x: 7.5, z: 6.2 }, 2.1, 6) },
+  collab: { id: "collab", label: "Bàn họp", zone: "collaboration", ...ring({ x: -5, z: 5.6 }, 1.75, 6) },
+  lounge: { id: "lounge", label: "Phòng họp", zone: "collaboration", ...ring({ x: 7.5, z: 6.2 }, 2.1, 6) },
 };
 
 export const HUB_CENTER: Vec2 = { x: 0, z: -0.6 };

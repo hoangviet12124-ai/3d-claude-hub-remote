@@ -78,7 +78,7 @@ export class SimulationEngine {
     if (this.status === "paused") return this.resume();
     if (this.status === "running") return;
     this.status = "running";
-    this.emit({ type: "system.started", message: "Simulation started" });
+    this.emit({ type: "system.started", message: "Bắt đầu mô phỏng" });
     this.publish();
   }
 
@@ -159,8 +159,8 @@ export class SimulationEngine {
     this.tasks.set(id, task);
     this.taskSeq.set(id, seq);
     this.taskRng.set(id, createRng(hashString(task.title) ^ SIM_CONFIG.seed ^ seq));
-    const via = task.preferredAgentId ? ` (requested from ${getAgent(task.preferredAgentId).name}, routed via Orion)` : "";
-    this.emit({ type: "task.created", taskId: id, message: `${id} created: ${shortTitle(task.title)}${via}`, metadata: { priority: task.priority } });
+    const via = task.preferredAgentId ? ` (giao cho ${getAgent(task.preferredAgentId).name}, qua Manager)` : "";
+    this.emit({ type: "task.created", taskId: id, message: `${id} được tạo: ${shortTitle(task.title)}${via}`, metadata: { priority: task.priority } });
     this.publish();
     return structuredClone(task);
   }
@@ -225,7 +225,7 @@ export class SimulationEngine {
   emitBootEvents(): void {
     this.emit({ type: "system.ready", message: "3D Claude Hub Remote ready · simulation mode, no live inference" });
     for (const a of AGENTS) {
-      this.emit({ type: "agent.arrived", agentId: a.id, message: `${a.name} is at the ${LOCATIONS[a.home].label}`, metadata: { location: a.home, boot: true } });
+      this.emit({ type: "agent.arrived", agentId: a.id, message: `${a.name} đang ở ${LOCATIONS[a.home].label}`, metadata: { location: a.home, boot: true } });
     }
   }
 
@@ -291,7 +291,7 @@ export class SimulationEngine {
     const home = profile.home;
     if (c.state.location !== home) {
       if (this.clock - this.idleSince.get(id)! >= SIM_CONFIG.returnHomeDelay) {
-        c.enqueue({ kind: "move", to: home, activity: "Heading back to desk", ambient: true });
+        c.enqueue({ kind: "move", to: home, activity: "Về bàn làm việc", ambient: true });
       }
       return;
     }
@@ -303,9 +303,9 @@ export class SimulationEngine {
     const label = LOCATIONS[spot].label;
     c.enqueue(
       { kind: "move", to: spot, slot: profile.seat, activity: `Stretching legs at the ${label}`, ambient: true },
-      { kind: "call", fn: () => this.emit({ type: "agent.ambient", agentId: id, message: `${profile.name} is at the ${label}`, feed: false, metadata: { location: spot } }), ambient: true },
-      { kind: "wait", until: () => false, timeout: stay, activity: "Taking a break", ambient: true },
-      { kind: "move", to: home, activity: "Heading back to desk", ambient: true },
+      { kind: "call", fn: () => this.emit({ type: "agent.ambient", agentId: id, message: `${profile.name} đang ở ${label}`, feed: false, metadata: { location: spot } }), ambient: true },
+      { kind: "wait", until: () => false, timeout: stay, activity: "Nghỉ giải lao", ambient: true },
+      { kind: "move", to: home, activity: "Về bàn làm việc", ambient: true },
     );
   }
 
@@ -317,7 +317,7 @@ export class SimulationEngine {
     const d = SIM_CONFIG.durations;
     const tpl = templateFor(task.title, task.description);
     const short = shortTitle(task.title);
-    const at = (loc: LocationId, slot?: number): Action => ({ kind: "move", to: loc, ...(slot === undefined ? {} : { slot }), activity: `Heading to the ${LOCATIONS[loc].label}` });
+    const at = (loc: LocationId, slot?: number): Action => ({ kind: "move", to: loc, ...(slot === undefined ? {} : { slot }), activity: `Đến ${LOCATIONS[loc].label}` });
     const call = (fn: () => void): Action => ({ kind: "call", fn });
     const progress = (f: number) => {
       const [a, b] = SIM_CONFIG.phaseProgress[t().phase];
@@ -329,10 +329,10 @@ export class SimulationEngine {
       case "intake":
         return [
           at("hub"),
-          { kind: "work", duration: d.intakeThink, status: "thinking", activity: `Reading ${task.id}: ${short}`, onProgress: progress },
-          this.talk(id, "piper", d.assign, "assign", `Delegating ${task.id} to Piper`),
+          { kind: "work", duration: d.intakeThink, status: "thinking", activity: `Đọc yêu cầu ${task.id}: ${short}`, onProgress: progress },
+          this.talk(id, "piper", d.assign, "assign", `Lập phiếu, giao ${task.id} cho Số hóa chuẩn bị hồ sơ`),
           call(() => {
-            this.emit({ type: "task.assigned", agentId: id, targetAgentId: "piper", taskId: task.id, message: `Orion assigned ${task.id} to Piper: ${short}` });
+            this.emit({ type: "task.assigned", agentId: id, targetAgentId: "piper", taskId: task.id, message: `Manager lập Phiếu giao việc ${task.id}: ${short}` });
             this.transition(task.id, "delegated");
           }),
         ];
@@ -340,15 +340,15 @@ export class SimulationEngine {
       case "planning":
         return [
           at("planning", 0),
-          { kind: "work", duration: d.breakdown, status: "working", activity: `Breaking down ${task.id}`, onProgress: progress },
+          { kind: "work", duration: d.breakdown, status: "working", activity: `Số hóa hồ sơ đầu vào của ${task.id}`, onProgress: progress },
           call(() => {
             const subtasks = tpl.subtasks.map((title, i) => ({ id: `${task.id}.${i + 1}`, title, done: false }));
             this.put({ ...t(), subtasks, updatedAt: this.clock });
-            this.emit({ type: "plan.created", agentId: id, taskId: task.id, message: `Piper split ${task.id} into ${subtasks.length} task cards`, metadata: { subtasks: subtasks.map((s) => s.title) } });
+            this.emit({ type: "plan.created", agentId: id, taskId: task.id, message: `Số hóa xong hồ sơ ${task.id}, lập ${subtasks.length} hạng mục kiểm tra`, metadata: { subtasks: subtasks.map((s) => s.title) } });
           }),
-          this.talk(id, "iris", d.coordinate, "message", "Briefing Iris on the plan"),
+          this.talk(id, "iris", d.coordinate, "message", "Chuyển hồ sơ cho Thủ thư tra căn cứ"),
           call(() => {
-            this.message(id, "iris", task.id, `${tpl.subtasks.length} cards ready, need research on "${short}"`);
+            this.message(id, "iris", task.id, `Đã có ${tpl.subtasks.length} hạng mục, cần căn cứ cho "${short}"`);
             this.transition(task.id, "plan_ready");
           }),
         ];
@@ -356,12 +356,12 @@ export class SimulationEngine {
       case "research":
         return [
           at("research"),
-          { kind: "work", duration: d.research, status: "working", activity: `Researching ${short}`, onProgress: progress },
+          { kind: "work", duration: d.research, status: "working", activity: `Tra Kho dữ liệu: ${short}`, onProgress: progress },
           call(() => this.put({ ...t(), findings: [...tpl.findings], updatedAt: this.clock })),
-          this.talk(id, "kai", d.publish, "message", "Sharing findings with Kai"),
+          this.talk(id, "kai", d.publish, "message", "Gửi căn cứ cho KT XDCB"),
           call(() => {
             this.message(id, "kai", task.id, `${tpl.findings[0]}`);
-            this.emit({ type: "research.completed", agentId: id, targetAgentId: "kai", taskId: task.id, message: `Iris published ${tpl.findings.length} findings for ${task.id}`, metadata: { findings: tpl.findings } });
+            this.emit({ type: "research.completed", agentId: id, targetAgentId: "kai", taskId: task.id, message: `Thủ thư gửi ${tpl.findings.length} kết quả tra cứu cho ${task.id}`, metadata: { findings: tpl.findings } });
             this.transition(task.id, "findings_published");
           }),
         ];
@@ -371,12 +371,12 @@ export class SimulationEngine {
         const first = iteration <= 1;
         return [
           at("dev"),
-          call(() => this.emit({ type: "implementation.started", agentId: id, taskId: task.id, message: first ? `Kai started building ${task.id}` : `Kai is reworking ${task.id} (attempt ${iteration})`, metadata: { iteration } })),
+          call(() => this.emit({ type: "implementation.started", agentId: id, taskId: task.id, message: first ? `KT XDCB bắt đầu kiểm tra ${task.id}` : `KT XDCB sửa ${task.id} theo Phiếu QA (lần ${iteration})`, metadata: { iteration } })),
           {
             kind: "work",
             duration: first ? d.implement : d.fix,
             status: "working",
-            activity: first ? `Implementing ${short}` : `Fixing feedback on ${task.id}`,
+            activity: first ? `Kiểm tra hồ sơ: ${short}` : `Sửa theo Phiếu QA: ${task.id}`,
             onProgress: (f) => {
               progress(f);
               const cur = t();
@@ -386,10 +386,10 @@ export class SimulationEngine {
               }
             },
           },
-          this.talk(id, "quinn", d.submit, "message", `Handing build #${iteration} to Quinn`),
+          this.talk(id, "quinn", d.submit, "message", `Nộp bản nháp lần ${iteration} cho QA`),
           call(() => {
-            this.message(id, "quinn", task.id, `Build #${iteration} of ${task.id} is ready for QA`);
-            this.emit({ type: "implementation.submitted", agentId: id, targetAgentId: "quinn", taskId: task.id, message: `Kai submitted build #${iteration} for ${task.id}`, metadata: { iteration } });
+            this.message(id, "quinn", task.id, `Bản nháp lần ${iteration} của ${task.id} kèm Báo cáo ngược, mời QA chấm`);
+            this.emit({ type: "implementation.submitted", agentId: id, targetAgentId: "quinn", taskId: task.id, message: `KT XDCB nộp bản nháp lần ${iteration} của ${task.id}`, metadata: { iteration } });
             this.transition(task.id, "submitted");
           }),
         ];
@@ -400,28 +400,28 @@ export class SimulationEngine {
         const test = tpl.tests[(task.iteration - 1) % tpl.tests.length]!;
         const head: Action[] = [
           at("testing"),
-          call(() => this.emit({ type: "qa.started", agentId: id, taskId: task.id, message: `Quinn is testing build #${task.iteration}`, feed: false })),
-          { kind: "work", duration: d.test, status: "working", activity: `Testing build #${task.iteration}`, onProgress: progress },
+          call(() => this.emit({ type: "qa.started", agentId: id, taskId: task.id, message: `QA chấm bản nháp lần ${task.iteration}`, feed: false })),
+          { kind: "work", duration: d.test, status: "working", activity: `Chấm bản nháp lần ${task.iteration}`, onProgress: progress },
         ];
         if (fails) {
           return [
             ...head,
-            { kind: "emote", status: "error", duration: d.errorEmote, activity: `✗ ${test}` },
-            this.talk(id, "kai", d.report, "report", "Reporting a failing test to Kai"),
+            { kind: "emote", status: "error", duration: d.errorEmote, activity: `Chưa đạt: ${test}` },
+            this.talk(id, "kai", d.report, "report", "Trả về KT XDCB kèm Phiếu QA"),
             call(() => {
-              this.message(id, "kai", task.id, `"${test}" fails on build #${task.iteration}`);
-              this.emit({ type: "qa.failed", agentId: id, targetAgentId: "kai", taskId: task.id, severity: "warning", message: `Quinn failed build #${task.iteration}: ${test}`, metadata: { test, iteration: task.iteration } });
+              this.message(id, "kai", task.id, `Chưa đạt tiêu chí "${test}" ở bản nháp lần ${task.iteration}`);
+              this.emit({ type: "qa.failed", agentId: id, targetAgentId: "kai", taskId: task.id, severity: "warning", message: `QA trả về bản nháp lần ${task.iteration}: ${test}`, metadata: { test, iteration: task.iteration } });
               this.rework(task.id, "tests_failed");
             }),
           ];
         }
         return [
           ...head,
-          { kind: "emote", status: "success", duration: d.celebrate, activity: "All tests green" },
-          this.talk(id, "rex", d.report, "message", "Passing the build to Rex"),
+          { kind: "emote", status: "success", duration: d.celebrate, activity: "Đạt mọi tiêu chí" },
+          this.talk(id, "rex", d.report, "message", "Chuyển kết quả cho Thư ký R&D ghi bài học"),
           call(() => {
-            this.message(id, "rex", task.id, `Build #${task.iteration} passes ${tpl.tests.length} checks, ready for review`);
-            this.emit({ type: "qa.passed", agentId: id, targetAgentId: "rex", taskId: task.id, severity: "success", message: `Quinn passed build #${task.iteration} of ${task.id}`, metadata: { iteration: task.iteration } });
+            this.message(id, "rex", task.id, `Bản nháp lần ${task.iteration} đạt ${tpl.tests.length} tiêu chí`);
+            this.emit({ type: "qa.passed", agentId: id, targetAgentId: "rex", taskId: task.id, severity: "success", message: `QA kết luận Đạt cho ${task.id} (lần ${task.iteration})`, metadata: { iteration: task.iteration } });
             this.transition(task.id, "tests_passed");
           }),
         ];
@@ -432,28 +432,28 @@ export class SimulationEngine {
         const note = tpl.reviewNotes[(task.iteration - 1) % tpl.reviewNotes.length]!;
         const head: Action[] = [
           at("review"),
-          call(() => this.emit({ type: "review.started", agentId: id, taskId: task.id, message: `Rex is reviewing ${task.id}`, feed: false })),
-          { kind: "work", duration: d.review, status: "working", activity: `Reviewing ${task.id}`, onProgress: progress },
+          call(() => this.emit({ type: "review.started", agentId: id, taskId: task.id, message: `Thư ký R&D lập Biên bản rút kinh nghiệm ${task.id}`, feed: false })),
+          { kind: "work", duration: d.review, status: "working", activity: `Rút kinh nghiệm ${task.id}`, onProgress: progress },
         ];
         if (changes) {
           return [
             ...head,
-            { kind: "emote", status: "error", duration: d.errorEmote, activity: "Changes requested" },
-            this.talk(id, "kai", d.report, "report", "Sending review notes to Kai"),
+            { kind: "emote", status: "error", duration: d.errorEmote, activity: "Cần làm lại" },
+            this.talk(id, "kai", d.report, "report", "Gửi ghi chú cho KT XDCB"),
             call(() => {
               this.message(id, "kai", task.id, `${note}`);
-              this.emit({ type: "review.changes_requested", agentId: id, targetAgentId: "kai", taskId: task.id, severity: "warning", message: `Rex requested changes on ${task.id}: ${note}`, metadata: { note } });
+              this.emit({ type: "review.changes_requested", agentId: id, targetAgentId: "kai", taskId: task.id, severity: "warning", message: `Thư ký R&D đề nghị làm lại ${task.id}: ${note}`, metadata: { note } });
               this.rework(task.id, "changes_requested");
             }),
           ];
         }
         return [
           ...head,
-          { kind: "emote", status: "success", duration: d.celebrate, activity: "Approved" },
-          this.talk(id, "orion", d.report, "report", "Reporting approval to Orion"),
+          { kind: "emote", status: "success", duration: d.celebrate, activity: "Đã ghi Sổ bài học" },
+          this.talk(id, "orion", d.report, "report", "Báo Manager tổng hợp gửi anh Việt"),
           call(() => {
-            this.message(id, "orion", task.id, `${task.id} approved`);
-            this.emit({ type: "review.approved", agentId: id, targetAgentId: "orion", taskId: task.id, severity: "success", message: `Rex approved ${task.id}` });
+            this.message(id, "orion", task.id, `${task.id}: đã ghi bài học, sẵn sàng tổng hợp`);
+            this.emit({ type: "review.approved", agentId: id, targetAgentId: "orion", taskId: task.id, severity: "success", message: `Thư ký R&D ghi xong bài học cho ${task.id}` });
             this.transition(task.id, "approved");
           }),
         ];
@@ -462,11 +462,11 @@ export class SimulationEngine {
       case "done":
         return [
           at("hub"),
-          { kind: "emote", status: "success", duration: d.announce, activity: `${task.id} shipped` },
+          { kind: "emote", status: "success", duration: d.announce, activity: `${task.id}: gửi anh Việt duyệt` },
           call(() => {
             const cur = t();
             this.put({ ...cur, progress: 1, assignedAgentId: null });
-            this.emit({ type: "task.completed", agentId: id, taskId: task.id, severity: "success", message: `${task.id} shipped: ${short}`, metadata: { iteration: cur.iteration } });
+            this.emit({ type: "task.completed", agentId: id, taskId: task.id, severity: "success", message: `${task.id} hoàn thành, chờ anh Việt duyệt: ${short}`, metadata: { iteration: cur.iteration } });
           }),
         ];
 

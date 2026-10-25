@@ -106,17 +106,17 @@ export function OverviewPanel() {
         caps.simulated ? (
           <div className="flex flex-col gap-3 rounded-2xl border border-signal/20 bg-[linear-gradient(160deg,rgb(124_196_214/0.12),rgb(14_19_27/0.2))] p-4" data-testid="demo-callout">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-[15px] font-semibold text-mist-100">Watch the team ship a feature</h2>
+              <h2 className="text-[15px] font-semibold text-mist-100">Xem Tổ giúp việc làm một vụ việc</h2>
               <span className="rounded-full border border-warn/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn">Simulated</span>
             </div>
             <p className="text-[12.5px] leading-relaxed text-mist-300">
-              <b className="text-mist-100">Run demo</b> sends one task through the whole team: Orion delegates, Piper plans, Iris researches, Kai builds, Quinn fails the first build, Kai fixes it, and Rex
-              approves.
+              <b className="text-mist-100">Run demo</b> chạy một vụ việc qua cả Tổ: Manager lập phiếu, Số hóa chuyển hồ sơ, Thủ thư tra văn bản, KT XDCB soạn nháp, QA trả về lần đầu, KT XDCB sửa, QA đạt, Thư ký R&amp;D
+              rút kinh nghiệm.
             </p>
             <ScenarioButtons />
             <p className="text-[11.5px] leading-snug text-mist-500">
-              <b className="text-mist-300">Load sprint</b> queues {SPRINT_TASKS.length} backlog tasks; {SIM_CONFIG.maxConcurrentTasks} run at a time and the rest wait their turn. Everything is a
-              scripted simulation: no AI inference, no code is written.
+              <b className="text-mist-300">Load sprint</b> xếp {SPRINT_TASKS.length} vụ việc mẫu; mỗi lúc chạy {SIM_CONFIG.maxConcurrentTasks} vụ, các vụ còn lại chờ. Toàn bộ là mô phỏng
+              có kịch bản: không gọi AI, không đọc hồ sơ thật.
             </p>
           </div>
         ) : (

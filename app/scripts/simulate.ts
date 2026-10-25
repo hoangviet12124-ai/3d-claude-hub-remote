@@ -172,7 +172,7 @@ section("6. Backlog + sprint");
   const tasks = ids.map((id) => engine.getTask(id)!);
   check("8-task sprint terminates", tasks.length === 8 && tasks.every((t) => isTerminal(t.phase)), `at ${engine.getClock().toFixed(0)} s`);
   const hotfix = tasks.find((t) => t.title === HOTFIX_TITLE)!;
-  check("scripted hot-fix ends done at iteration 3", hotfix.phase === "done" && hotfix.iteration === 3, `${hotfix.phase} it${hotfix.iteration}`);
+  check("vụ việc mẫu 1 xong ở lần 2 (QA trả về một lần)", hotfix.phase === "done" && hotfix.iteration === 2, `${hotfix.phase} it${hotfix.iteration}`);
   const migration = tasks.find((t) => t.title === MIGRATION_TITLE)!;
   check("scripted migration ends failed", migration.phase === "failed", migration.phase);
   const completed = tasks.filter((t) => t.phase === "done").length;

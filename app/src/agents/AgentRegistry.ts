@@ -3,12 +3,13 @@ import type { WorkflowPhase } from "../tasks/taskTypes.ts";
 import type { LocationId } from "../simulation/worldLayout.ts";
 
 export const AGENTS: AgentProfile[] = [
-  { id: "orion", name: "Orion", role: "orchestrator", roleLabel: "Orchestrator", tagline: "Coordinates work and delegates tasks", color: "#E8B04A", home: "hub", seat: 0 },
-  { id: "iris", name: "Iris", role: "researcher", roleLabel: "Researcher", tagline: "Researches technical topics and gathers information", color: "#5CC8D7", home: "research", seat: 1 },
-  { id: "piper", name: "Piper", role: "product_manager", roleLabel: "Product Manager", tagline: "Converts requirements into actionable tasks", color: "#A78BFA", home: "product", seat: 2 },
-  { id: "kai", name: "Kai", role: "engineer", roleLabel: "Software Engineer", tagline: "Implements software features", color: "#6C9EFF", home: "dev", seat: 3 },
-  { id: "quinn", name: "Quinn", role: "qa", roleLabel: "QA Engineer", tagline: "Tests completed work", color: "#5FD39A", home: "testing", seat: 4 },
-  { id: "rex", name: "Rex", role: "reviewer", roleLabel: "Code Reviewer", tagline: "Reviews implementation quality", color: "#F08A7E", home: "review", seat: 5 },
+  // Tổ giúp việc, giai đoạn 1. Mã nội bộ (orion, iris...) giữ nguyên để không phải sửa phần nối hook; chỉ đổi tên hiển thị.
+  { id: "orion", name: "Manager", role: "orchestrator", roleLabel: "Điều phối", tagline: "Nhận việc, lập Phiếu giao việc, tổng hợp gửi anh Việt", color: "#5A8DEE", home: "hub", seat: 0 },
+  { id: "iris", name: "Thủ thư", role: "researcher", roleLabel: "Kho dữ liệu chung", tagline: "Tra văn bản còn hiệu lực theo ngày thủ tục, tra Lịch sử làm việc", color: "#4FBF7A", home: "research", seat: 1 },
+  { id: "piper", name: "Số hóa", role: "product_manager", roleLabel: "Số hóa hồ sơ", tagline: "Chuyển PDF, Word sang markdown, giữ bản gốc", color: "#3FB6C4", home: "product", seat: 2 },
+  { id: "kai", name: "KT XDCB", role: "engineer", roleLabel: "Trưởng phòng Kiểm toán XDCB", tagline: "Kiểm tra hồ sơ đầu tư xây dựng, đấu thầu, bảo trì; soạn bản nháp", color: "#E8963A", home: "dev", seat: 3 },
+  { id: "quinn", name: "QA", role: "qa", roleLabel: "Kiểm tra độc lập", tagline: "Chấm bản nháp theo tiêu chí nghiệm thu, đối chiếu nguồn", color: "#F06A6A", home: "testing", seat: 4 },
+  { id: "rex", name: "Thư ký R&D", role: "reviewer", roleLabel: "Rút kinh nghiệm", tagline: "Lập Biên bản rút kinh nghiệm, ghi Sổ bài học", color: "#A78BFA", home: "review", seat: 5 },
 ];
 
 export const AGENT_IDS: AgentId[] = AGENTS.map((a) => a.id);

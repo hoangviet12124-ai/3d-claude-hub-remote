@@ -12,7 +12,7 @@ export const SIM_CONFIG = {
   maxConcurrentTasks: 2,
   maxIterations: 3,
   qaFailRate: 0.3,
-  reviewChangeRate: 0.25,
+  reviewChangeRate: 0, // Thư ký R&D không trả việc về; chỉ ghi bài học
   returnHomeDelay: 2.5,
   ambient: { minGap: 18, maxGap: 40, minStay: 6, maxStay: 10 },
   /** Minimum on-screen lifetime of a comm arc; a link lives max(talk duration, linkDuration). */
