@@ -14,7 +14,6 @@ import { feedEvents } from "@/events/eventStore";
 import { BACKEND_ENV, commands, getTokenSource } from "@/integrations/backendClient";
 import { SIM_CONFIG } from "@/simulation/simulationConfig";
 import { useWorldStore } from "@/state/useWorldStore";
-import { activeTasks } from "@/tasks/taskActions";
 import { SPRINT_TASKS } from "@/tasks/taskBacklog";
 import type { Task } from "@/tasks/taskTypes";
 import { useRenderCount } from "@/world/renderCounts";
@@ -76,13 +75,13 @@ function ScenarioButtons() {
   return (
     <div className="flex flex-wrap gap-1.5">
       <button type="button" className="btn btn-primary" onClick={() => void commands.runDemo()} disabled={caps.scenario !== null} title={caps.scenario ?? undefined}>
-        <Sparkles size={14} /> Run demo
+        <Sparkles size={14} /> Chạy thử
       </button>
       <button type="button" className="btn" onClick={() => void commands.loadSprint()} disabled={caps.scenario !== null} title={caps.scenario ?? undefined}>
-        <Layers size={14} /> Load sprint
+        <Layers size={14} /> Nạp 8 vụ
       </button>
       <button type="button" className="btn btn-ghost" onClick={() => openDialog()} disabled={caps.submit !== null} title={caps.submit ?? undefined}>
-        <Plus size={14} /> New task
+        <Plus size={14} /> Tạo việc
       </button>
     </div>
   );
@@ -90,32 +89,54 @@ function ScenarioButtons() {
 
 // ───────────────────────── Overview ─────────────────────────
 
+/** Ba ô đếm như bảng điều hành: đang chạy, đang chờ, đã xong. Dải màu trên đầu ô cho biết loại. */
+function StatTiles({ tasks }: { tasks: readonly Task[] }) {
+  const n = (g: number) => tasks.filter((t) => GROUP(t) === g).length;
+  const tiles = [
+    { label: "Đang chạy", value: n(0), strip: "bg-[#f2c94c]" },
+    { label: "Đang chờ", value: n(1), strip: "bg-bad" },
+    { label: "Xong", value: n(2), strip: "bg-ok" },
+  ];
+  return (
+    <div className="grid grid-cols-3 gap-2" data-testid="stat-tiles">
+      {tiles.map((t) => (
+        <div key={t.label} className="overflow-hidden rounded-[3px] border-[1.5px] border-line bg-white">
+          <div className={`h-1.5 ${t.strip}`} />
+          <div className="px-2.5 pb-2 pt-1.5">
+            <div className="font-mono text-[24px] font-semibold leading-none tabular-nums text-mist-100">{t.value}</div>
+            <div className="mt-1 font-mono text-[11px] text-mist-300">{t.label}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function OverviewPanel() {
   useRenderCount("OverviewPanel");
   const tasks = useWorldStore((s) => s.tasks);
-  const events = useWorldStore((s) => s.events);
   const clock = useWorldStore((s) => s.clock);
   const selectTask = useWorldStore((s) => s.selectTask);
   const caps = useBackendCaps();
-  const inFlight = useMemo(() => sortTasks(activeTasks(tasks)), [tasks]);
-  const feed = useMemo(() => feedEvents(events), [events]);
+  const sorted = useMemo(() => sortTasks(tasks), [tasks]);
 
   return (
     <div className="flex flex-col gap-5">
+      <StatTiles tasks={tasks} />
       {tasks.length === 0 ? (
         caps.simulated ? (
-          <div className="flex flex-col gap-3 rounded-2xl border border-signal/20 bg-[linear-gradient(160deg,rgb(124_196_214/0.12),rgb(14_19_27/0.2))] p-4" data-testid="demo-callout">
+          <div className="flex flex-col gap-3 rounded-[3px] border-[1.5px] border-line bg-ink-900 p-4" data-testid="demo-callout">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-[15px] font-semibold text-mist-100">Xem Tổ giúp việc làm một vụ việc</h2>
-              <span className="rounded-full border border-warn/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn">Simulated</span>
+              <span className="rounded-full border border-warn/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn">Mô phỏng</span>
             </div>
             <p className="text-[12.5px] leading-relaxed text-mist-300">
-              <b className="text-mist-100">Run demo</b> giả lập anh Việt gõ lệnh giao việc: Manager gọi KT XDCB và QA vào Phòng họp, KT XDCB lập kế hoạch, hai trợ lý ra Kho lấy văn bản và
+              <b className="text-mist-100">Chạy thử</b> giả lập anh Việt gõ lệnh giao việc: Manager gọi KT XDCB và QA vào Phòng họp, KT XDCB lập kế hoạch, hai trợ lý ra Kho lấy văn bản và
               hồ sơ cũ, KT XDCB soạn báo cáo, trợ lý đưa sang QA, QA trả về lần đầu rồi đạt, Manager gửi anh duyệt, Thư ký R&amp;D ghi bài học.
             </p>
             <ScenarioButtons />
             <p className="text-[11.5px] leading-snug text-mist-500">
-              <b className="text-mist-300">Load sprint</b> xếp {SPRINT_TASKS.length} vụ việc mẫu; mỗi lúc chạy {SIM_CONFIG.maxConcurrentTasks} vụ, các vụ còn lại chờ. Toàn bộ là mô phỏng
+              <b className="text-mist-300">Nạp 8 vụ</b> xếp {SPRINT_TASKS.length} vụ việc mẫu; mỗi lúc chạy {SIM_CONFIG.maxConcurrentTasks} vụ, các vụ còn lại chờ. Toàn bộ là mô phỏng
               có kịch bản: không gọi AI, không đọc hồ sơ thật.
             </p>
           </div>
@@ -124,24 +145,20 @@ export function OverviewPanel() {
         )
       ) : null}
 
-      <Section title="Team">
-        <AgentRoster compact />
-      </Section>
-
-      <Section title="In flight" right={<span className="font-mono text-[11px] text-mist-500">{inFlight.length} active</span>}>
-        {inFlight.length === 0 ? (
-          <Empty>{tasks.length ? "Nothing in flight right now." : "No tasks yet."}</Empty>
+      <Section title="Công việc" right={<span className="font-mono text-[11px] text-mist-500">{sorted.length} vụ</span>}>
+        {sorted.length === 0 ? (
+          <Empty>Chưa có vụ việc nào.</Empty>
         ) : (
           <div className="flex flex-col gap-2">
-            {inFlight.map((t) => (
+            {sorted.map((t) => (
               <TaskCard key={t.id} task={t} clock={clock} compact onSelect={(id) => selectTask(id)} />
             ))}
           </div>
         )}
       </Section>
 
-      <Section title="Latest activity">
-        <ActivityFeed events={feed} limit={8} compact />
+      <Section title="Nhân sự">
+        <AgentRoster compact />
       </Section>
     </div>
   );
@@ -195,8 +212,8 @@ export function TasksPanel() {
       {caps.submit === null || caps.scenario === null ? (
         <div className="flex flex-wrap gap-1.5">
           {caps.submit === null ? (
-            <button type="button" className="btn btn-primary" onClick={() => openDialog()} title="New task (N)">
-              <Plus size={14} /> New task
+            <button type="button" className="btn btn-primary" onClick={() => openDialog()} title="Tạo việc (N)">
+              <Plus size={14} /> Tạo việc
             </button>
           ) : null}
           {caps.scenario === null ? (

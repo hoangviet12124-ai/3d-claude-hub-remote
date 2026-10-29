@@ -9,7 +9,7 @@ import { OrbitControls } from "@react-three/drei";
 import { liveWorld, useWorldStore } from "@/state/useWorldStore";
 import type { FreeArea } from "@/world/cameraPresets";
 import type { CameraRequest } from "@/state/useWorldStore";
-import { CAMERA_FOV, CAMERA_FOV_MAX, CAMERA_LIMITS, CAMERA_PRESETS, clampTarget, fitScale, freeArea } from "@/world/cameraPresets";
+import { CAMERA_FOV, CAMERA_FOV_MAX, CAMERA_LIMITS, CAMERA_PRESETS, ISO_PHI, ISO_THETA, clampTarget, fitScale, freeArea } from "@/world/cameraPresets";
 import { pointerState } from "@/world/InteractionManager";
 import { useRenderCount } from "@/world/renderCounts";
 
@@ -76,26 +76,27 @@ function goalFor(request: CameraRequest, fit: number, overview: OverviewFrame, c
     tmpOffset.subVectors(camera.position, target);
     tmpSpherical.setFromVector3(tmpOffset);
     const distance = (request.distance ?? tmpSpherical.radius / fit) * fit;
-    // Hướng nhìn cố định (theta 0, như mọi preset); never look along the floor when focusing something small.
-    return { target: t, theta: 0, phi: clampPhi(Math.min(tmpSpherical.phi, 1.05)), distance: clampDistance(distance) };
+    // Hướng nhìn cố định, đúng như mọi preset.
+    return { target: t, theta: ISO_THETA, phi: ISO_PHI, distance: clampDistance(distance) };
   }
   return null;
 }
 
 /** Floor corners plus the top of the window wall: what "the whole office" means for the overview. */
 const OFFICE_EXTENT: readonly [number, number, number][] = [
-  [-15, 0, -9.5],
-  [15, 0, -9.5],
-  [-15, 0, 11.6],
-  [15, 0, 11.6],
-  [-15, 4.4, -9.5],
-  [15, 4.4, -9.5],
+  [-20.2, -0.35, -10.7],
+  [20, -0.35, -10.7],
+  [-20.2, -0.35, 13.5],
+  [20, -0.35, 13.5],
+  [-20.2, 2.6, -10.7],
+  [20, 2.6, -10.7],
+  [-20.2, 2.6, 13.5],
 ];
 const FRAME_MARGIN_PX = 14;
 /** The CameraBar floats at the bottom of the free area; keep the office's front edge above it. */
 const CAMERA_BAR_PX = 56;
 const probeVec = new THREE.Vector3();
-/** The overview's scale at the 70 m distance limit. */
+/** The overview's scale at the `maxDistance` limit. */
 const OVERVIEW_MAX_SCALE =
   CAMERA_LIMITS.maxDistance / Math.hypot(...CAMERA_PRESETS.overview.position.map((v, i) => v - CAMERA_PRESETS.overview.target[i]!));
 const probeTarget = new THREE.Vector3();
@@ -105,7 +106,7 @@ interface OverviewFrame {
   scale: number;
   /** Sideways nudge of the preset (target and camera) in metres, centring the office in the free area. */
   dx: number;
-  /** False when even the largest scale (the 70 m `maxDistance`) leaves part of the office outside. */
+  /** False when even the largest scale (`maxDistance`) leaves part of the office outside. */
   fits: boolean;
 }
 

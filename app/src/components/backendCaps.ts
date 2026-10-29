@@ -38,7 +38,7 @@ export function capsFor(backend: ReturnType<typeof useWorldStore.getState>["back
   const modeLine = !backend.identified
     ? "Connecting to backend…"
     : simulated
-      ? "Simulation mode · no live inference"
+      ? "Chế độ mô phỏng · không gọi AI thật"
       : control
         ? `${backend.label} · mirror + control`
         : `${backend.label} · read-only mirror`;

@@ -281,7 +281,7 @@ function OperationsHub() {
     () => ({
       ringMat: new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.45, toneMapped: false }),
       haloMat: new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.2, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
-      topMat: new THREE.MeshStandardMaterial({ color: "#070b12", emissive: color, emissiveIntensity: 0.06, roughness: 0.15, metalness: 0.4 }),
+      topMat: new THREE.MeshStandardMaterial({ color: "#e6eaf8", emissive: color, emissiveIntensity: 0.08, roughness: 0.15, metalness: 0.4 }),
     }),
     [color],
   );
@@ -406,7 +406,7 @@ function drawMissionControl(g: CanvasRenderingContext2D, allTasks: readonly Task
     g.fillText(simulated ? "Chưa có vụ việc." : "Đang chờ phiên làm việc…", 28, 120);
     g.fillStyle = "#7c8797";
     g.font = `500 18px ${font}`;
-    g.fillText(simulated ? "Bấm Run demo hoặc New task để giao việc cho Manager." : "Vụ việc hiện ở đây khi có dữ liệu.", 28, 152);
+    g.fillText(simulated ? "Bấm Chạy thử hoặc Tạo việc để giao việc cho Manager." : "Vụ việc hiện ở đây khi có dữ liệu.", 28, 152);
   }
   active.forEach((t, i) => {
     const y = 88 + i * 48;
@@ -694,7 +694,7 @@ function Lounge() {
     }
     return { seats, backs };
   }, [c]);
-  const rug = sharedMaterial("rug", () => new THREE.MeshStandardMaterial({ color: "#1d2433", roughness: 0.95, metalness: 0 }));
+  const rug = sharedMaterial("rug", () => new THREE.MeshStandardMaterial({ color: "#dfe4f6", roughness: 0.95, metalness: 0 }));
   return (
     <group name="lounge">
       <mesh geometry={geometries.disc()} material={rug} position={[c.x, 0.006, c.z]} scale={3.3} receiveShadow />

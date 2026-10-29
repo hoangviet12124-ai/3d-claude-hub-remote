@@ -23,7 +23,7 @@ function useControlsState() {
   const alertsOn = useWorldStore((s) => s.desktopAlerts);
   const openDialog = useWorldStore((s) => s.openDialog);
   const caps = useBackendCaps();
-  const runLabel = status === "running" ? "Pause" : status === "paused" ? "Resume" : "Start";
+  const runLabel = status === "running" ? "Tạm dừng" : status === "paused" ? "Chạy tiếp" : "Bắt đầu";
   const RunIcon = status === "running" ? Pause : Play;
   return { speed, soundOn, setSound, audioReady, live, alertsOn, openDialog, caps, runLabel, RunIcon };
 }
@@ -115,8 +115,8 @@ export function SimulationControls() {
             title={caps.reset ?? (caps.simulated ? "Reset the world to t = 0" : "Clear this view")}
           >
             <RotateCcw size={14} />
-            <span className="hidden 2xl:inline">{caps.simulated ? "Reset" : "Clear"}</span>
-            <span className="sr-only 2xl:hidden">{caps.simulated ? "Reset" : "Clear"}</span>
+            <span className="hidden 2xl:inline">{caps.simulated ? "Đặt lại" : "Xóa"}</span>
+            <span className="sr-only 2xl:hidden">{caps.simulated ? "Đặt lại" : "Xóa"}</span>
           </button>
         )}
 
@@ -126,17 +126,17 @@ export function SimulationControls() {
 
       <div className="flex flex-none items-center gap-1.5">
 
-        <button type="button" className="btn" onClick={() => void commands.runDemo()} disabled={caps.scenario !== null} title={caps.scenario ?? "Send the scripted demo task through the whole team"}>
+        <button type="button" className="btn" onClick={() => void commands.runDemo()} disabled={caps.scenario !== null} title={caps.scenario ?? "Chạy một vụ việc mẫu qua cả Tổ"}>
           <Sparkles size={14} />
-          {label("Run demo")}
+          {label("Chạy thử")}
         </button>
-        <button type="button" className="btn" onClick={() => void commands.loadSprint()} disabled={caps.scenario !== null} title={caps.scenario ?? "Queue the 8-task sprint (B)"}>
+        <button type="button" className="btn" onClick={() => void commands.loadSprint()} disabled={caps.scenario !== null} title={caps.scenario ?? "Xếp 8 vụ việc mẫu (B)"}>
           <Layers size={14} />
-          {label("Load sprint")}
+          {label("Nạp 8 vụ")}
         </button>
-        <button type="button" className="btn btn-primary" onClick={() => openDialog()} disabled={caps.submit !== null} title={caps.submit ?? "New task (N)"}>
+        <button type="button" className="btn btn-primary" onClick={() => openDialog()} disabled={caps.submit !== null} title={caps.submit ?? "Tạo việc (N)"}>
           <Plus size={15} />
-          {label("New task")}
+          {label("Tạo việc")}
         </button>
       </div>
     </div>
@@ -183,7 +183,7 @@ export function CompactSimControls() {
         <RunIcon size={17} />
       </button>
       {caps.submit === null ? (
-        <button type="button" className="btn btn-primary size-11 px-0" onClick={() => openDialog()} title="New task (N)" aria-label="New task">
+        <button type="button" className="btn btn-primary size-11 px-0" onClick={() => openDialog()} title="Tạo việc (N)" aria-label="Tạo việc">
           <Plus size={18} />
         </button>
       ) : null}
@@ -266,7 +266,7 @@ export function CompactSimControls() {
                 title={caps.scenario ?? undefined}
               >
                 <Sparkles size={16} />
-                Run demo
+                Chạy thử
               </button>
               <button
                 type="button"
@@ -279,7 +279,7 @@ export function CompactSimControls() {
                 title={caps.scenario ?? undefined}
               >
                 <Layers size={16} />
-                Load sprint
+                Nạp 8 vụ
               </button>
             </>
           ) : null}
