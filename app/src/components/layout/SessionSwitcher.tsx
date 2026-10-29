@@ -54,7 +54,7 @@ export function SessionSwitcher({ variant }: { variant: "bar" | "compact" }) {
   const badge =
     busy.count > 0 ? (
       <span
-        className={`inline-flex h-4 min-w-4 flex-none items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold tabular-nums ${busy.waiting ? "bg-warn text-ink-950" : "bg-signal/25 text-signal-strong"}`}
+        className={`inline-flex h-4 min-w-4 flex-none items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold tabular-nums ${busy.waiting ? "bg-warn text-white" : "bg-signal/25 text-signal-strong"}`}
         aria-label={`${busy.count} other session${busy.count === 1 ? "" : "s"} active${busy.waiting ? `, ${busy.waiting} waiting for you` : ""}`}
         data-testid="session-switcher-badge"
       >

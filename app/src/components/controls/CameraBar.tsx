@@ -18,11 +18,11 @@ const ICONS: Record<CameraPresetId, LucideIcon> = {
 };
 
 const SHORT: Record<CameraPresetId, string> = {
-  overview: "Overview",
-  hub: "Ops Hub",
-  research: "Research",
-  development: "Development",
-  collaboration: "Collaboration",
+  overview: "Toàn cảnh",
+  hub: "Manager & QA",
+  research: "Kho lưu trữ",
+  development: "Phòng KT XDCB",
+  collaboration: "Phòng họp",
 };
 
 /**

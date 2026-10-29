@@ -10,58 +10,60 @@ import type { Task, TaskPriority, TaskStatus, WorkflowPhase } from "@/tasks/task
 // ───────────────────────── labels + formatting ─────────────────────────
 
 export const PHASE_LABEL: Record<WorkflowPhase, string> = {
-  queued: "Queued",
-  intake: "Intake",
-  planning: "Planning",
-  research: "Research",
-  implementation: "Implementation",
-  testing: "Testing",
-  review: "Review",
-  done: "Done",
-  failed: "Failed",
+  queued: "Chờ nhận",
+  intake: "Họp giao việc",
+  planning: "Lập kế hoạch",
+  research: "Lấy tài liệu ở Kho",
+  implementation: "Soạn báo cáo",
+  testing: "QA kiểm tra",
+  review: "Manager tổng hợp",
+  done: "Xong",
+  failed: "Dừng",
 };
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
-  queued: "Queued",
-  assigned: "Assigned",
-  in_progress: "In progress",
-  testing: "Testing",
-  review: "Review",
-  blocked: "Blocked",
-  completed: "Completed",
-  failed: "Failed",
+  queued: "Chờ",
+  assigned: "Đã giao",
+  in_progress: "Đang làm",
+  testing: "QA kiểm tra",
+  review: "Tổng hợp",
+  blocked: "Tạm dừng",
+  completed: "Hoàn thành",
+  failed: "Dừng",
 };
 
 const STATUS_TONE: Record<TaskStatus, string> = {
   queued: "text-mist-300 bg-ink-600/60 border-mist-500/20",
   assigned: "text-signal-strong bg-signal/10 border-signal/25",
   in_progress: "text-signal-strong bg-signal/10 border-signal/25",
-  testing: "text-[#c4b5fd] bg-[#a78bfa]/10 border-[#a78bfa]/25",
-  review: "text-[#f9b4aa] bg-[#f08a7e]/10 border-[#f08a7e]/25",
+  testing: "text-[#6a3fd0] bg-[#a78bfa]/10 border-[#a78bfa]/25",
+  review: "text-[#c0442f] bg-[#f08a7e]/10 border-[#f08a7e]/25",
   blocked: "text-warn bg-warn/10 border-warn/30",
   completed: "text-ok bg-ok/10 border-ok/25",
   failed: "text-bad bg-bad/10 border-bad/30",
 };
 
 export const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
-  idle: "Idle",
-  walking: "Walking",
-  working: "Working",
-  thinking: "Thinking",
-  communicating: "Talking",
-  success: "Success",
-  error: "Problem",
+  idle: "Rảnh",
+  walking: "Đang đi",
+  working: "Đang làm",
+  thinking: "Đang nghĩ",
+  communicating: "Trao đổi",
+  success: "Xong",
+  error: "Vướng",
 };
 
 const AGENT_STATUS_TONE: Record<AgentStatus, string> = {
   idle: "text-mist-300 bg-ink-600/60 border-mist-500/20",
   walking: "text-signal-strong bg-signal/10 border-signal/25",
-  working: "text-[#a9c4ff] bg-[#6c9eff]/12 border-[#6c9eff]/30",
-  thinking: "text-[#c4b5fd] bg-[#a78bfa]/12 border-[#a78bfa]/30",
+  working: "text-[#2747c9] bg-[#6c9eff]/12 border-[#6c9eff]/30",
+  thinking: "text-[#6a3fd0] bg-[#a78bfa]/12 border-[#a78bfa]/30",
   communicating: "text-signal-strong bg-signal/15 border-signal/35",
   success: "text-ok bg-ok/10 border-ok/30",
   error: "text-warn bg-warn/10 border-warn/30",
 };
+
+const PRIORITY_LABEL: Record<TaskPriority, string> = { critical: "Gấp", high: "Cao", medium: "Vừa", low: "Thấp" };
 
 const PRIORITY_TONE: Record<TaskPriority, string> = {
   critical: "text-bad border-bad/35",
@@ -86,10 +88,10 @@ export function formatClock(seconds: number): string {
 /** Relative time between two backend-clock values (seconds). */
 export function relativeTime(at: number, clock: number): string {
   const d = Math.max(0, clock - at);
-  if (d < 2) return "just now";
-  if (d < 60) return `${Math.floor(d)}s ago`;
-  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
-  return `${Math.floor(d / 3600)}h ago`;
+  if (d < 2) return "vừa xong";
+  if (d < 60) return `${Math.floor(d)} giây trước`;
+  if (d < 3600) return `${Math.floor(d / 60)} phút trước`;
+  return `${Math.floor(d / 3600)} giờ trước`;
 }
 
 export function locationLabel(a: AgentState): string {
@@ -108,13 +110,13 @@ export function Avatar({ id, size = 28, ring = false }: { id: AgentId; size?: nu
   const a = getAgent(id);
   return (
     <span
-      className="inline-flex flex-none items-center justify-center rounded-full font-semibold text-ink-950"
+      className="inline-flex flex-none items-center justify-center rounded-full font-semibold text-white"
       style={{
         width: size,
         height: size,
         fontSize: Math.round(size * 0.42),
         background: `radial-gradient(circle at 35% 30%, ${a.color}, ${a.color}cc 60%, ${a.color}88)`,
-        boxShadow: ring ? `0 0 0 2px #0a0e14, 0 0 0 3.5px ${a.color}` : `inset 0 -2px 4px rgb(0 0 0 / 0.25)`,
+        boxShadow: ring ? `0 0 0 2px #ffffff, 0 0 0 3.5px ${a.color}` : `inset 0 -2px 4px rgb(0 0 0 / 0.25)`,
       }}
       title={`${a.name} · ${a.roleLabel}`}
       aria-hidden
@@ -137,13 +139,13 @@ export function TaskStatusBadge({ status }: { status: TaskStatus }) {
 }
 
 export function PriorityTag({ priority }: { priority: TaskPriority }) {
-  return <Pill className={`bg-transparent uppercase ${PRIORITY_TONE[priority]}`}>{priority}</Pill>;
+  return <Pill className={`bg-transparent uppercase ${PRIORITY_TONE[priority]}`}>{PRIORITY_LABEL[priority]}</Pill>;
 }
 
 export function DemoTag() {
   return (
-    <Pill className="border-signal/40 bg-signal/10 text-signal-strong" title="The scripted demo task: QA fails the first build on purpose">
-      DEMO
+    <Pill className="border-signal/40 bg-signal/10 text-signal-strong" title="Vụ việc chạy thử: QA cố ý trả về lần đầu">
+      MẪU
     </Pill>
   );
 }

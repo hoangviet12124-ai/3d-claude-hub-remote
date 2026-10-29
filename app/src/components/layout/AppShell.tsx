@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { AGENT_IDS } from "@/agents/AgentRegistry";
 import { useSoundEffects } from "@/audio/useSoundEffects";
 import { CameraBar } from "@/components/controls/CameraBar";
+import { ConversationBox } from "@/components/activity/ConversationBox";
 import type { AgentId } from "@/agents/agentTypes";
 import { readDevFlags } from "@/components/layout/devFlags";
 import { currentLayoutMode } from "@/components/layout/layoutMode";
@@ -24,7 +25,7 @@ import { useRenderCount } from "@/world/renderCounts";
 // Client-only: WebGL cannot render on the server.
 const WorldCanvas = dynamic(() => import("@/world/WorldCanvas"), {
   ssr: false,
-  loading: () => <div className="absolute inset-0 bg-[#080b10]" />,
+  loading: () => <div className="blueprint-paper absolute inset-0" />,
 });
 
 /**
@@ -200,7 +201,7 @@ export function AppShell() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-ink-950 text-mist-100">
-      <div className="absolute inset-0 z-0">
+      <div className="blueprint-paper absolute inset-0 z-0">
         <WorldCanvas />
       </div>
       <AgentLabelsOverlay />
@@ -222,6 +223,7 @@ export function AppShell() {
             {/* Free area: the 3D world shows through here; CameraBar floats at its bottom. */}
             <div className="free-area relative flex min-h-0 min-w-0 flex-1 flex-col items-center justify-end gap-2 phl:col-start-1 phl:row-start-2" data-testid="free-area">
               <Notice />
+              <ConversationBox />
               <CameraBar />
               {/*
                 Permission asks float over the world on every tab; they cover the camera bar while present. Under

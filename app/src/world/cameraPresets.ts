@@ -7,30 +7,47 @@ export interface CameraPreset {
   target: readonly [number, number, number];
 }
 
-/** §6.6, authored for a wide, unobstructed view; `fitScale` stretches them for the actual free area. */
+/**
+ * Góc nhìn chéo cố định kiểu sa bàn (như bản vẽ isometric): camera luôn đứng phía trước bên phải, nhìn xuống
+ * khoảng 35°. Mọi preset và lúc bấm vào agent đều dùng đúng hướng này, nên đổi góc chỉ trượt và phóng, không xoay.
+ * `fitScale` stretches the distances for the actual free area.
+ */
+export const ISO_THETA = Math.PI / 4;
+export const ISO_PHI = 0.96;
+
+function iso(label: string, id: CameraPresetId, target: readonly [number, number, number], distance: number): CameraPreset {
+  const h = Math.sin(ISO_PHI) * distance;
+  return {
+    id,
+    label,
+    target,
+    position: [target[0] + h * Math.sin(ISO_THETA), target[1] + Math.cos(ISO_PHI) * distance, target[2] + h * Math.cos(ISO_THETA)],
+  };
+}
+
 export const CAMERA_PRESETS: Record<CameraPresetId, CameraPreset> = {
-  overview: { id: "overview", label: "Overview", position: [-1.2, 20, 25], target: [-1.2, 0, 0.8] },
-  hub: { id: "hub", label: "Operations Hub", position: [0.6, 7.2, 9.6], target: [0, 1, -2.4] },
-  development: { id: "development", label: "Development", position: [8.2, 6.2, 5.6], target: [8.25, 0.6, -2.8] },
-  research: { id: "research", label: "Research", position: [-8.2, 6.2, 5.6], target: [-8.25, 0.6, -2.8] },
-  collaboration: { id: "collaboration", label: "Collaboration", position: [-3.2, 8.4, 15], target: [-6.8, 0.5, 4.6] },
+  overview: iso("Toàn cảnh", "overview", [0, 0, 1.5], 105),
+  hub: iso("Manager & QA", "hub", [-3, 0.6, -5], 30),
+  development: iso("Phòng KT XDCB", "development", [-14, 0.6, 8], 32),
+  research: iso("Kho lưu trữ", "research", [-14.5, 0.6, -5.5], 30),
+  collaboration: iso("Phòng họp", "collaboration", [7.5, 0.5, -5], 28),
 };
 
-export const CAMERA_PRESET_IDS: CameraPresetId[] = ["overview", "hub", "research", "development", "collaboration"];
+export const CAMERA_PRESET_IDS: CameraPresetId[] = ["overview", "hub", "collaboration", "development", "research"];
 
 export const CAMERA_LIMITS = {
-  minDistance: 3.5,
-  maxDistance: 70,
+  minDistance: 10,
+  maxDistance: 220,
   minPolarAngle: 0.18,
   maxPolarAngle: 1.36,
-  target: { minX: -14, maxX: 14, minY: 0, maxY: 3, minZ: -8, maxZ: 10 },
+  target: { minX: -19, maxX: 19, minY: 0, maxY: 3, minZ: -10, maxZ: 13 },
 } as const;
 
-export const CAMERA_FOV = 40;
+export const CAMERA_FOV = 22;
 /** Narrow free areas widen the fov up to this so the overview still shows the whole office (phase 6). */
-export const CAMERA_FOV_MAX = 60;
-export const FOCUS_DISTANCE_AGENT = 7.5;
-export const FOCUS_DISTANCE_STATION = 6.5;
+export const CAMERA_FOV_MAX = 34;
+export const FOCUS_DISTANCE_AGENT = 16;
+export const FOCUS_DISTANCE_STATION = 15;
 
 /** Smallest free area we fit to, so a collapsed layout never divides by ~0. */
 const MIN_FREE_PX = 120;

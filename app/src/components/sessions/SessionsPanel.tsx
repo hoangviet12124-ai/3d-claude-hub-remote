@@ -86,7 +86,7 @@ function UnlockSessions() {
       <button
         type="submit"
         disabled={!token.trim()}
-        className="self-start rounded-lg bg-signal px-3.5 py-2 text-[12.5px] font-semibold text-ink-950 transition-colors hover:bg-signal-strong disabled:cursor-not-allowed disabled:opacity-50"
+        className="self-start rounded-lg bg-signal px-3.5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-signal-strong disabled:cursor-not-allowed disabled:opacity-50"
       >
         Unlock sessions
       </button>

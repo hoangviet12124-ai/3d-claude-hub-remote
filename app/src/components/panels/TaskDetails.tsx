@@ -84,7 +84,7 @@ export function TaskDetails({ task, onBack }: { task: Task; onBack: () => void }
         <OpenSessionButton taskId={task.id} />
         {task.preferredAgentId ? (
           <p className="text-[11.5px] text-mist-500">
-            Requested from {getAgent(task.preferredAgentId).name}, routed via Orion.
+            Giao cho {getAgent(task.preferredAgentId).name}, qua Manager.
           </p>
         ) : null}
       </div>

@@ -5,16 +5,19 @@ export const SIM_CONFIG = {
   seed: 20261018,
   tickHz: 30,
   maxStepSeconds: 0.1,
-  walkSpeed: 2.4,
+  walkSpeed: 3,
   speeds: [0.5, 1, 2, 4],
   defaultSpeed: 1,
   autoStart: true,
   maxConcurrentTasks: 2,
   maxIterations: 3,
   qaFailRate: 0.3,
-  reviewChangeRate: 0.25,
+  reviewChangeRate: 0, // Thư ký R&D không trả việc về; chỉ ghi bài học
   returnHomeDelay: 2.5,
-  ambient: { minGap: 18, maxGap: 40, minStay: 6, maxStay: 10 },
+  /** Agent đã có nhiệm vụ, lúc rảnh: thỉnh thoảng ra Góc giải lao ngồi một lát, phần lớn thời gian ngồi yên ở bàn. */
+  ambient: { minGap: 90, maxGap: 180, minStay: 10, maxStay: 18 },
+  /** Agent chưa giao nhiệm vụ hoặc chưa dựng: ngồi yên ở phòng mình, lâu lâu ra Góc giải lao ngồi lâu rồi về. */
+  ambientFree: { minGap: 50, maxGap: 140, minStay: 40, maxStay: 80 },
   /** Minimum on-screen lifetime of a comm arc; a link lives max(talk duration, linkDuration). */
   linkDuration: 2.4,
   durations: {
@@ -33,6 +36,8 @@ export const SIM_CONFIG = {
     celebrate: 1.4,
     errorEmote: 1.6,
     announce: 2,
+    lessons: 3,
+    meeting: 4,
   },
   phaseProgress: {
     queued: [0, 0],

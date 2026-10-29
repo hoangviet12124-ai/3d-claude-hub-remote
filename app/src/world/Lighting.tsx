@@ -8,20 +8,11 @@ import { useWorldStore } from "@/state/useWorldStore";
 import { useRenderCount } from "@/world/renderCounts";
 
 /**
- * §6.5. Blue-hour exterior, warm interior. One shadow-casting directional light whose orthographic frustum
- * just covers the floor (2048 map in high, no shadows in low), a hemisphere fill, a few warm point lights
- * over the work areas (no shadows), and a procedural Lightformer environment for PBR
- * reflections. three r186 has no PCFSoftShadowMap: the Canvas uses "percentage" (PCFShadowMap) and the
- * softness comes from `shadow.radius`.
+ * Ánh sáng ban ngày đều cho kiểu bản vẽ: một đèn hướng tạo bóng nhẹ (2048 ở chất lượng cao, không bóng ở
+ * chất lượng thấp), đèn bán cầu trắng làm sáng đều, và môi trường Lightformer trắng nhạt cho vật liệu PBR.
+ * three r186 has no PCFSoftShadowMap: the Canvas uses "percentage" (PCFShadowMap) and the softness comes from
+ * `shadow.radius`.
  */
-
-const WARM_LIGHTS: [number, number, number][] = [
-  [-8.25, 3.2, -3],
-  [8.25, 3.2, -3],
-  [0, 3.4, -0.4],
-  [-5.5, 3.1, 5.4],
-  [7.5, 3.1, 6.1],
-];
 
 export function Lighting() {
   useRenderCount("Lighting");
@@ -44,45 +35,35 @@ export function Lighting() {
     const light = sun.current;
     if (!light) return;
     const cam = light.shadow.camera;
-    cam.left = -17;
-    cam.right = 17;
-    cam.top = 13;
-    cam.bottom = -13;
+    cam.left = -22;
+    cam.right = 22;
+    cam.top = 16;
+    cam.bottom = -16;
     cam.near = 2;
     cam.far = 48;
     cam.updateProjectionMatrix();
-    light.shadow.radius = 4;
+    light.shadow.radius = 6;
     light.shadow.bias = -0.0004;
     light.shadow.normalBias = 0.025;
-    light.target.position.set(0, 0, 1);
+    light.target.position.set(0, 0, 1.5);
     light.target.updateMatrixWorld();
   }, []);
 
   return (
     <>
-      <hemisphereLight args={["#a8bdf0", "#3a2c20", high ? 1.5 : 1.9]} />
-      <ambientLight color="#4a5a80" intensity={0.12} />
+      <hemisphereLight args={["#ffffff", "#cfd5ee", high ? 1.9 : 2.3]} />
+      <ambientLight color="#ffffff" intensity={0.35} />
       <directionalLight
         ref={sun}
-        color="#ffdcbc"
-        intensity={high ? 2.2 : 2.4}
-        position={[-8, 18, 11]}
+        color="#ffffff"
+        intensity={high ? 1.5 : 1.7}
+        position={[10, 18, 6]}
         castShadow={high}
         shadow-mapSize={[2048, 2048]}
       />
-      {/* Cool rim from the window wall. */}
-      <directionalLight color="#7d97d8" intensity={0.45} position={[4, 6, -20]} />
-      {WARM_LIGHTS.map(([x, y, z], i) => (
-        <pointLight key={i} color="#ffbf82" intensity={high ? 26 : 30} distance={12} decay={1.6} position={[x, y, z]} />
-      ))}
-      <Environment resolution={128} frames={1} background={false} environmentIntensity={0.55}>
-        {/* Dusk sky through the back windows, warm ceiling strips, a cool fill from the open front. */}
-        <Lightformer form="rect" intensity={1.6} color="#e89a6a" position={[0, 2, -14]} scale={[34, 3, 1]} />
-        <Lightformer form="rect" intensity={0.9} color="#3a4f8f" position={[0, 7, -14]} scale={[34, 6, 1]} />
-        <Lightformer form="rect" intensity={2.2} color="#ffd2a1" position={[0, 6, -2]} rotation-x={Math.PI / 2} scale={[10, 1, 1]} />
-        <Lightformer form="rect" intensity={2.2} color="#ffd2a1" position={[0, 6, 5]} rotation-x={Math.PI / 2} scale={[10, 1, 1]} />
-        <Lightformer form="rect" intensity={0.7} color="#8fb0ff" position={[0, 3, 20]} rotation-y={Math.PI} scale={[30, 6, 1]} />
-        <Lightformer form="circle" intensity={1.2} color="#ffb070" position={[-18, 4, 2]} rotation-y={Math.PI / 2} scale={4} />
+      <Environment resolution={64} frames={1} background={false} environmentIntensity={0.35}>
+        <Lightformer form="rect" intensity={1.2} color="#ffffff" position={[0, 8, 0]} rotation-x={Math.PI / 2} scale={[30, 20, 1]} />
+        <Lightformer form="rect" intensity={0.6} color="#dfe4ff" position={[0, 3, 20]} rotation-y={Math.PI} scale={[30, 6, 1]} />
       </Environment>
     </>
   );
