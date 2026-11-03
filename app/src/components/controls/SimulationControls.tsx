@@ -61,7 +61,7 @@ export function SimulationControls() {
           />
         ) : (
           <span className="hidden h-7 items-center rounded-[10px] border border-mist-500/15 px-2.5 text-[11.5px] text-mist-500 sm:inline-flex" title={caps.speed ?? undefined}>
-            Real time
+            Thời gian thực
           </span>
         )}
 
@@ -213,7 +213,7 @@ export function CompactSimControls() {
               <Segmented label="Simulation speed" options={SPEED_OPTIONS} value={speed} onChange={(v) => void commands.setSpeed(v)} disabled={caps.speed !== null} title={caps.speed ?? "Simulation speed"} size="lg" />
             </div>
           ) : (
-            <p className="px-2 py-1 text-[12px] leading-snug text-mist-500">{caps.speed ?? "Real time"}</p>
+            <p className="px-2 py-1 text-[12px] leading-snug text-mist-500">{caps.speed ?? "Thời gian thực"}</p>
           )}
 
           <button type="button" className={row} aria-pressed={soundOn} onClick={() => setSound({ enabled: !soundOn })} data-testid="sound-toggle-menu">

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { EVENTS, FORWARDER, installedEvents, withBridge, withoutBridge } from "./bridge-install.mjs";
+const ours = (h) => /forward-hook\.mjs"$/.test(h.command);
 
 const cli = join(dirname(fileURLToPath(import.meta.url)), "bridge-install.mjs");
 let failures = 0;
@@ -38,7 +39,8 @@ check("install exits 0 and reports the other hooks as unchanged", r.status === 0
 check(`install covers all ${EVENTS.length} events`, installedEvents(once).length === EVENTS.length);
 check("other hooks keep their place and content", JSON.stringify(once.hooks.PreToolUse[0]) === JSON.stringify(existing.hooks.PreToolUse[0]) && JSON.stringify(once.hooks.SessionStart[0]) === JSON.stringify(existing.hooks.SessionStart[0]));
 check("other settings are untouched", JSON.stringify([once.env, once.model, once.permissions]) === JSON.stringify([existing.env, existing.model, existing.permissions]));
-check("every added handler is async and points at forward-hook.sh", Object.values(once.hooks).flat().flatMap((g) => g.hooks).filter((h) => h.command.endsWith("forward-hook.sh")).every((h) => h.async === true && h.type === "command"));
+const added = Object.values(once.hooks).flat().flatMap((g) => g.hooks).filter(ours);
+check("every added handler is async and runs `node \"…/forward-hook.mjs\"`", added.length === EVENTS.length && added.every((h) => h.async === true && h.type === "command" && h.command.startsWith("node \"")), added[0]?.command);
 check("a backup of the previous file is written", readdirSync(dirname(file)).some((f) => f.startsWith("settings.json.aaw-backup-")));
 
 r = run(["install"], home);
@@ -61,9 +63,13 @@ const project = mkdtempSync(join(tmpdir(), "aaw-proj-"));
 r = run(["install", "--scope", "project", "--project", project], home);
 check("project scope writes .claude/settings.local.json", r.status === 0 && installedEvents(JSON.parse(readFileSync(join(project, ".claude", "settings.local.json"), "utf8"))).length === EVENTS.length);
 check("the hook command uses forward slashes (Git Bash runs it on Windows)", !FORWARDER.includes("\\"));
-const spaced = withBridge({}, "/Users/a b/it's here/bridge/forward-hook.sh").hooks.Stop[0].hooks[0].command;
-check("the command is quoted, so a repo path with spaces or quotes still runs", spaced === "'/Users/a b/it'\\''s here/bridge/forward-hook.sh'", spaced);
-check("a quoted install is recognised as ours", installedEvents(withBridge({}, "/Users/a b/bridge/forward-hook.sh")).length === EVENTS.length);
+const onedrive = withBridge({}, "C:/Users/ACV/OneDrive - Airports Corporation of Vietnam - ACV/Desktop/van phong/bridge/forward-hook.mjs").hooks.Stop[0].hooks[0].command;
+check("a path with spaces is double-quoted (same meaning in Git Bash, cmd and PowerShell)", onedrive === 'node "C:/Users/ACV/OneDrive - Airports Corporation of Vietnam - ACV/Desktop/van phong/bridge/forward-hook.mjs"', onedrive);
+const odd = withBridge({}, "/Users/a b/it's $here/bridge/forward-hook.mjs").hooks.Stop[0].hooks[0].command;
+check("a path a shell would expand falls back to single quotes", odd === "node '/Users/a b/it'\\''s $here/bridge/forward-hook.mjs'", odd);
+check("a quoted install is recognised as ours", installedEvents(withBridge({}, "/Users/a b/bridge/forward-hook.mjs")).length === EVENTS.length);
+const oldSh = { hooks: { Stop: [{ hooks: [{ type: "command", command: "'/x/bridge/forward-hook.sh'", async: true }] }] } };
+check("an older forward-hook.sh install is recognised and replaced by the Node one", withBridge(oldSh).hooks.Stop.length === 1 && withBridge(oldSh).hooks.Stop[0].hooks[0].command.endsWith('forward-hook.mjs"'));
 const winInstall = { hooks: { Stop: [{ hooks: [{ type: "command", command: "C:\\aaw\\bridge\\forward-hook.sh" }] }] } };
 check("a backslash install from before is recognised and replaced", installedEvents(winInstall).length === 1 && withBridge(winInstall).hooks.Stop.length === 1 && !withoutBridge(winInstall).hooks);
 writeFileSync(file, "{ not json");

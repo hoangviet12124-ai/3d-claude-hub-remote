@@ -78,10 +78,10 @@ export const ROOMS: RoomDef[] = [
   { id: "meeting", label: "Phòng họp", x0: 3, x1: 12, ...BACK, color: "#7cc4d6", frontWall: true },
   { id: "rnd", label: "Phòng R&D", x0: 12, x1: 20, ...BACK, color: "#A78BFA", frontWall: true },
   { id: "xdcb", label: "Phòng KT XDCB", x0: -20, x1: -8, ...FRONT, color: "#E8963A", frontWall: true },
-  { id: "fin", label: "Phòng Tài chính", note: "chưa giao nhiệm vụ", x0: -8, x1: -2.5, ...FRONT, color: "#D4B44A", frontWall: true },
+  { id: "fin", label: "Phòng Tài chính", x0: -8, x1: -2.5, ...FRONT, color: "#D4B44A", frontWall: true },
   { id: "proc", label: "Phòng KT TC & quy trình", note: "chưa giao nhiệm vụ", x0: -2.5, x1: 3, ...FRONT, color: "#5BC0A8", frontWall: true },
   { id: "draft", label: "Phòng Góp ý văn bản", note: "chưa giao nhiệm vụ", x0: 3, x1: 8.5, ...FRONT, color: "#E07AB0", frontWall: true },
-  { id: "study", label: "Phòng Nghiên cứu chuyên đề", note: "chưa giao nhiệm vụ", x0: 8.5, x1: 14, ...FRONT, color: "#8FA8D8", frontWall: true },
+  { id: "study", label: "Phòng NC & Phương pháp", x0: 8.5, x1: 14, ...FRONT, color: "#8FA8D8", frontWall: true },
   { id: "lounge", label: "Góc giải lao", x0: 14, x1: 20, ...FRONT, color: "#c9a27a", frontWall: false },
 ];
 
@@ -152,7 +152,7 @@ export const LOCATIONS: Record<LocationId, LocationDef> = {
   fin: { id: "fin", label: "Bàn Tài chính", zone: "development", ...frontDesk(-5.25) },
   proc: { id: "proc", label: "Bàn KT TC & quy trình", zone: "development", ...frontDesk(0.25) },
   draft: { id: "draft", label: "Bàn Góp ý văn bản", zone: "development", ...frontDesk(5.75) },
-  study: { id: "study", label: "Bàn Nghiên cứu chuyên đề", zone: "development", ...frontDesk(11.25) },
+  study: { id: "study", label: "Bàn NC & Phương pháp", zone: "development", ...frontDesk(11.25) },
   lounge: { id: "lounge", label: "Góc giải lao", zone: "collaboration", slots: loungeSlots, facing: loungeSlots.map((s) => headingTo(s, LOUNGE_CENTER)) },
   view: {
     id: "view",

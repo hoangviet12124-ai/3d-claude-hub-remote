@@ -7,7 +7,7 @@
 // user     ~/.claude/settings.json            (every project)
 // project  DIR/.claude/settings.local.json    (one project; not committed)
 //
-// Only handlers whose command ends in bridge/forward-hook.sh are ever added or removed. Every other hook,
+// Only handlers whose command runs bridge/forward-hook.mjs (or the older forward-hook.sh) are ever added or removed. Every other hook,
 // and every other setting, is left exactly as it was. The file is backed up before each change.
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -20,13 +20,26 @@ export const EVENTS = [
   "Stop", "StopFailure", "SubagentStart", "SubagentStop", "Notification", "PreCompact",
   "PermissionRequest", "PermissionDenied",
 ];
-// Forward slashes: on Windows Claude Code runs hook commands in Git Bash, where `\` is an escape character.
-export const FORWARDER = resolve(join(dirname(fileURLToPath(import.meta.url)), "..", "bridge", "forward-hook.sh")).replaceAll("\\", "/");
-const isOurs = (h) => typeof h?.command === "string" && h.command.replaceAll("\\", "/").replace(/'$/, "").endsWith("bridge/forward-hook.sh");
+// Forward slashes: on Windows the hook command may run in Git Bash, where `\` is an escape character.
+const slash = (p) => p.replaceAll("\\", "/");
+export const FORWARDER = slash(resolve(join(dirname(fileURLToPath(import.meta.url)), "..", "bridge", "forward-hook.mjs")));
+const isOurs = (h) => typeof h?.command === "string" && /bridge\/forward-hook\.(sh|mjs)$/.test(h.command.replaceAll("\\", "/").replace(/['"]$/, ""));
 
-/** The forwarder path as one shell word: Claude Code runs hook commands through a shell (Git Bash on Windows). */
+/**
+ * One path as one shell word. Double quotes work the same in Git Bash, cmd and PowerShell, so they are used when the
+ * path has nothing those shells would expand; otherwise POSIX single quotes (Git Bash, macOS, Linux).
+ */
 export function shellQuote(path) {
+  if (!/["$`%!\\]/.test(path)) return `"${path}"`;
   return `'${path.replaceAll("'", "'\\''")}'`;
+}
+
+/**
+ * `node "<forwarder>"`. A bare `node` first (the Node installer puts it on PATH) because a quoted program path would
+ * need `&` in front of it in PowerShell; the quoted path after it is a plain argument in every shell.
+ */
+export function hookCommand(forwarder = FORWARDER) {
+  return forwarder.endsWith(".sh") ? shellQuote(forwarder) : `node ${shellQuote(forwarder)}`;
 }
 
 export function settingsPath(scope, project, home = homedir()) {
@@ -60,7 +73,7 @@ export function withBridge(settings, forwarder = FORWARDER) {
   const next = withoutBridge(settings);
   next.hooks ??= {};
   for (const event of EVENTS) {
-    next.hooks[event] = [...(next.hooks[event] ?? []), { hooks: [{ type: "command", command: shellQuote(forwarder), async: true, timeout: 5 }] }];
+    next.hooks[event] = [...(next.hooks[event] ?? []), { hooks: [{ type: "command", command: hookCommand(forwarder), async: true, timeout: 5 }] }];
   }
   return next;
 }

@@ -5,6 +5,7 @@ import { WebSocketAgentBackend } from "../src/integrations/WebSocketAgentBackend
 import { SimulationEngine } from "../src/simulation/SimulationEngine.ts";
 import { SIM_CONFIG } from "../src/simulation/simulationConfig.ts";
 import { DEMO_TASK } from "../src/tasks/taskActions.ts";
+import { AGENTS } from "../src/agents/AgentRegistry.ts";
 import type { AgentEvent } from "../src/events/eventTypes.ts";
 
 const DT = 1 / SIM_CONFIG.tickHz;
@@ -46,7 +47,7 @@ console.log("\nWebSocket protocol v1");
   const client = new WebSocketAgentBackend({ url: server.url });
   await client.connect();
   check("hello → welcome: label and simulated flag come from the server", client.label === "Local simulation" && client.simulated === true);
-  check("welcome is followed by a full snapshot", (await until(() => client.getSnapshot() !== null)) && client.getSnapshot()!.agents.length === 6);
+  check("welcome is followed by a full snapshot", (await until(() => client.getSnapshot() !== null)) && client.getSnapshot()!.agents.length === AGENTS.length);
 
   const rejected = await client.setSpeed(3).then(() => "resolved", (e: Error) => e.message);
   check("a failing command comes back as ack ok:false with the error", rejected.includes("Unsupported speed"), rejected);

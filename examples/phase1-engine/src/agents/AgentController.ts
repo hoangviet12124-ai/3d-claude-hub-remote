@@ -47,7 +47,7 @@ export class AgentController {
     return {
       id: profile.id,
       status: "idle",
-      activity: "Idle",
+      activity: "Rảnh",
       currentTaskId: null,
       progress: 0,
       location: profile.home,
@@ -91,7 +91,7 @@ export class AgentController {
     this.state.destination = null;
     this.state.facingAgentId = null;
     this.state.progress = 0;
-    this.setStatus("idle", "Idle");
+    this.setStatus("idle", "Rảnh");
   }
 
   enqueue(...actions: Action[]): void {
@@ -107,7 +107,7 @@ export class AgentController {
     this.state.path = [];
     this.state.destination = null;
     this.state.facingAgentId = null;
-    this.setStatus("idle", "Idle");
+    this.setStatus("idle", "Rảnh");
   }
 
   step(dt: number): void {
@@ -118,7 +118,7 @@ export class AgentController {
       if (!this.current) {
         const next = this.queue.shift();
         if (!next) {
-          if (this.state.status !== "idle") this.setStatus("idle", "Idle");
+          if (this.state.status !== "idle") this.setStatus("idle", "Rảnh");
           this.state.progress = 0;
           return;
         }

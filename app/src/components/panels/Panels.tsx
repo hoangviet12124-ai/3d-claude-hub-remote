@@ -48,7 +48,7 @@ function AgentRoster({ compact = false }: { compact?: boolean }) {
                 </span>
                 {!compact || a?.activity ? (
                   <span className="block truncate text-[11.5px] text-mist-300">
-                    {a?.paused ? "Paused" : a?.activity || "Idle"}
+                    {a?.paused ? "Tạm dừng" : a?.activity || "Rảnh"}
                     {task && !compact ? <span className="text-mist-500"> · {task.id}</span> : null}
                   </span>
                 ) : null}

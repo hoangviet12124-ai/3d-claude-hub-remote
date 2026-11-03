@@ -3,13 +3,13 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LiveAgentBackend, classifyTool, testOutcome } from "../src/live/LiveAgentBackend.ts";
+import { LiveAgentBackend, NEEDS_PERMISSION, classifyTool, subagentRole } from "../src/live/LiveAgentBackend.ts";
 import type { HookPayload } from "../src/live/LiveAgentBackend.ts";
 import { WebSocketAgentBackend } from "../src/integrations/WebSocketAgentBackend.ts";
 import { startWorldServer } from "../server/worldServer.ts";
 import { createHookRoute } from "../server/hookRoute.ts";
 import { AGENTS } from "../src/agents/AgentRegistry.ts";
-import { slotFor } from "../src/simulation/worldLayout.ts";
+import { LOCATIONS, slotFor } from "../src/simulation/worldLayout.ts";
 import type { AgentEvent } from "../src/events/eventTypes.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -30,56 +30,41 @@ async function until(cond: () => boolean, ms = 3000) {
 
 console.log("\nLive Claude Code source");
 
-// ── classification ──
+// ── classification: what a tool call is, in words (which robot does it is decided by the session) ──
 {
   const cwd = "/p";
-  const cases: [string, Record<string, unknown>, string][] = [
-    ["Read", { file_path: "/p/src/a.ts" }, "iris"],
-    ["Grep", { pattern: "login" }, "iris"],
-    ["WebSearch", { query: "jwt rotation" }, "iris"],
-    ["Edit", { file_path: "/p/src/a.ts" }, "kai"],
-    ["Write", { file_path: "/p/test/a.test.ts" }, "kai"],
-    ["Bash", { command: "npm test -- auth" }, "quinn"],
-    ["Bash", { command: "npx tsc --noEmit" }, "quinn"],
-    ["Bash", { command: "cargo test" }, "quinn"],
-    ["Bash", { command: "git diff --stat" }, "rex"],
-    ["Bash", { command: "gh pr view 12" }, "rex"],
-    ["Bash", { command: "ls -la" }, "iris"],
-    ["Bash", { command: "CI=1 pnpm vitest run" }, "quinn"],
-    ["Bash", { command: "CI=1 npx vitest run" }, "quinn"],
-    ["Bash", { command: "python -m pytest -q" }, "quinn"],
-    ["Bash", { command: "node --test" }, "quinn"],
-    ["Bash", { command: "git commit -m 'x'" }, "kai"],
-    ["TodoWrite", {}, "piper"],
-    ["ExitPlanMode", {}, "piper"],
-    ["Agent", { subagent_type: "Explore" }, "orion"],
-    ["mcp__github__get_issue", {}, "iris"],
-    // seen in a real session:
-    ["Bash", { command: "cat src/cart.js; echo ----; cat test/cart.test.js" }, "iris"],
-    ["Bash", { command: "ls -R src test* 2>/dev/null; cat package.json; npm test 2>&1 | head -40" }, "quinn"],
-    ["Bash", { command: "npm test 2>&1 | tail -15" }, "quinn"],
-    ["Bash", { command: "git status && git diff" }, "rex"],
-    ["Bash", { command: "npm install left-pad && npm test" }, "quinn"],
-    ["Bash", { command: "mkdir -p out && cp a b" }, "kai"],
+  const cases: [string, Record<string, unknown>, string, string][] = [
+    ["Read", { file_path: "/p/src/a.ts" }, "work", "Đọc · src/a.ts"],
+    ["Grep", { pattern: "login" }, "work", "Tìm · login"],
+    ["WebSearch", { query: "nghị định 175" }, "work", "Tra trên web · nghị định 175"],
+    ["Edit", { file_path: "/p/src/a.ts" }, "work", "Sửa · src/a.ts"],
+    ["Write", { file_path: "/p/Báo cáo.md" }, "work", "Ghi · Báo cáo.md"],
+    ["Bash", { command: "npm test -- auth" }, "work", "Chạy lệnh · npm test -- auth"],
+    ["PowerShell", { command: "Get-ChildItem" }, "work", "Chạy lệnh · Get-ChildItem"],
+    ["TodoWrite", {}, "plan", "Cập nhật danh sách việc"],
+    ["ExitPlanMode", {}, "plan", "Lập kế hoạch"],
+    ["Agent", { subagent_type: "thu-thu" }, "work", "Giao việc · thu-thu"],
+    ["Skill", { skill: "kiem-toan-xdcb-agent" }, "work", "Dùng skill · kiem-toan-xdcb-agent"],
+    ["AskUserQuestion", {}, "ask", "Hỏi anh một câu"],
+    ["mcp__github__get_issue", {}, "work", "github · get_issue"],
   ];
-  const wrong = cases.filter(([tool, input, agent]) => classifyTool(tool, input, cwd)?.agent !== agent);
-  check(`tools map to the right robot (${cases.length} cases)`, wrong.length === 0, wrong.map(([t, i]) => `${t} ${JSON.stringify(i)} → ${classifyTool(t, i, cwd)?.agent}`).join("; "));
+  const wrong = cases.filter(([tool, input, kind, label]) => {
+    const c = classifyTool(tool, input, cwd);
+    return c?.kind !== kind || c.label !== label;
+  });
+  check(`tool calls are described in Vietnamese (${cases.length} cases)`, wrong.length === 0, wrong.map(([t, i]) => `${t} ${JSON.stringify(i)} → ${JSON.stringify(classifyTool(t, i, cwd))}`).join("; "));
   check("Claude Code plumbing (ToolSearch) is not shown", classifyTool("ToolSearch", { query: "select:TodoWrite" }) === null);
-  const outcomes: [string, string][] = [
-    ["✖ test (21.7ms)\nℹ tests 1\nℹ pass 0\nℹ fail 1", "failed"], // node:test, from the real session
-    ["ℹ tests 2\nℹ pass 2\nℹ fail 0", "passed"],
-    ["Error: Cannot find module '/x/test'", "failed"],
-    ["Tests:       1 failed, 4 passed, 5 total", "failed"], // jest
-    ["Test Files  3 passed (3)\n     Tests  12 passed (12)", "passed"], // vitest
-    ["===== 2 failed, 10 passed in 0.31s =====", "failed"], // pytest
-    ["===== 10 passed in 0.31s =====", "passed"],
-    ["test result: ok. 8 passed; 0 failed", "passed"], // cargo
-    ["src/a.ts(3,1): error TS2304: Cannot find name 'x'.", "failed"], // tsc
-    ["", "unknown"],
-    ["compiled successfully", "unknown"],
+  const win = "C:\\Users\\ACV\\Desktop\\Brainstorm";
+  check("Windows paths are shown relative to the project, with /", classifyTool("Read", { file_path: `${win}\\Tổ giúp việc\\Sổ.md` }, win)?.label === "Đọc · Tổ giúp việc/Sổ.md");
+  const roles: [string, string][] = [
+    ["qa", "quinn"], ["truong-phong-xdcb", "kai"], ["truong-phong-xdcb-b", "kai"], ["thu-thu", "iris"], ["so-hoa", "piper"],
+    ["so-hoa-scan", "piper"], ["thu-ky-rnd", "rex"], ["ky-su-cai-tien", "caitien"], ["truong-phong-nghien-cuu-phuong-phap", "chuyende"],
+    ["chuyen-vien-tai-chinh-a", "taichinh"], ["chuyen-vien-tai-chinh-b", "taichinh"], ["tom-tat-vu-viec", "troly1"],
+    ["trich-du-kien", "troly2"], ["Explore", "troly2"], ["general-purpose", "troly2"], ["", "troly2"],
   ];
-  const badOutcomes = outcomes.filter(([o, want]) => testOutcome(o) !== want);
-  check(`test outcomes are read from the output (${outcomes.length} runners)`, badOutcomes.length === 0, badOutcomes.map(([o]) => JSON.stringify(o.slice(0, 40))).join("; "));
+  const badRoles = roles.filter(([t, want]) => subagentRole(t) !== want);
+  check(`each agent file of the Tổ has its own robot (${roles.length} names)`, badRoles.length === 0, badRoles.map(([t]) => `${t} → ${subagentRole(t)}`).join("; "));
+  check("every robot's room exists in the layout", AGENTS.every((a) => a.home in LOCATIONS));
   {
     const wrapped = "<ide_selection>The user selected the lines 116 to 116 from /x/app.ts:\nfoo()\n</ide_selection>\nsửa đi em";
     const live2 = new LiveAgentBackend({ autoTick: false });
@@ -88,82 +73,9 @@ console.log("\nLive Claude Code source");
     const titles = live2.snapshot().tasks.map((t) => t.title);
     check("task titles show what you typed, not IDE selections or slash-command wrappers", titles.includes("sửa đi em") && titles.includes("/clear"), titles.join(" | "));
   }
-  check("labels show paths relative to the project", classifyTool("Edit", { file_path: "/p/src/a.ts" }, cwd)?.label === "Edit · src/a.ts");
 }
 
-// ── the recorded sample session, replayed in simulated time ──
-const sample = readFileSync(join(root, "bridge", "sample-session.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { t: number; payload: HookPayload });
-{
-  const live = new LiveAgentBackend({ autoTick: false, now: () => 0 });
-  const events: AgentEvent[] = [];
-  live.subscribe((e) => events.push(e));
-  await live.connect();
-  const DT = 1 / 30;
-  let kaiAtDevWhileEditing = false;
-  let now = 0;
-  for (const { t, payload } of sample) {
-    while (now < t / 1000) { live.tick(DT); now += DT; }
-    live.ingest(payload);
-    if (payload.hook_event_name === "PostToolUse" && payload.tool_name === "Edit") {
-      const kai = live.snapshot().agents.find((a) => a.id === "kai")!;
-      kaiAtDevWhileEditing = kai.location === "dev" && kai.status === "working";
-    }
-  }
-  for (let i = 0; i < 30 * 20; i++) live.tick(DT);
-  const s = live.snapshot();
-  const task = s.tasks[0]!;
-  const phases = [task.history[0]!.from, ...task.history.map((h) => h.to)].join(" → ");
-  check("one prompt becomes one task, finished when Claude stops", s.tasks.length === 1 && task.phase === "done" && task.progress === 1, `${task.phase}`);
-  check("prompt text becomes the task title", task.title.startsWith("Add rate limiting to the /login endpoint"));
-  check("phases follow what the session actually did", phases === "queued → intake → research → planning → research → implementation → testing → research → implementation → testing → review → done", phases);
-  check("a second round of edits after a failing test counts as iteration 2", task.iteration === 2, `${task.iteration}`);
-  const types = events.map((e) => e.type);
-  check("failing npm test → qa.failed; passing test and typecheck → qa.passed ×2", types.filter((x) => x === "qa.failed").length === 1 && types.filter((x) => x === "qa.passed").length === 2);
-  check("the subagent shows up as Orion assigning Iris and Iris reporting back", events.some((e) => e.type === "task.assigned" && e.targetAgentId === "iris") && events.some((e) => e.agentId === "iris" && e.targetAgentId === "orion"));
-  check("Kai is at the Engineering Station, working, while Claude edits", kaiAtDevWhileEditing);
-  check("task.completed is emitted", types.includes("task.completed"));
-  check("Claude's TodoWrite list becomes the task cards", task.subtasks.length === 3 && task.subtasks[0]!.title === "Add rate limiter middleware" && types.includes("plan.created"));
-  const home = s.agents.every((a) => {
-    const p = slotFor(AGENTS.find((x) => x.id === a.id)!.home, 0).position;
-    return Math.hypot(a.position.x - p.x, a.position.z - p.z) < 1e-6 && a.status === "idle";
-  });
-  check("after the session everyone walks home and idles", home, s.agents.map((a) => `${a.id}:${a.status}@${a.location}`).join(" "));
-
-  const refusals = await Promise.all([
-    live.submitTask({ title: "x" }).then(() => "ok", (e: Error) => e.message),
-    live.setSpeed(2).then(() => "ok", (e: Error) => e.message),
-    live.pauseAgent("kai").then(() => "ok", (e: Error) => e.message),
-  ]);
-  check("the live view is read-only: submit, speed and pause are refused with a reason", refusals.every((r) => r.includes("real time") || r.includes("read-only")), refusals.join(" | "));
-
-  const hidden = new LiveAgentBackend({ autoTick: false, showPrompts: false });
-  hidden.ingest(sample[1]!.payload);
-  check("--hide-prompts keeps prompt text out of the world", hidden.snapshot().tasks[0]?.title === "Prompt 1" && hidden.snapshot().tasks[0]?.description === "");
-}
-
-// ── a recorded real session (Claude Code 2.1.304, claude -p): the tests never passed ──
-{
-  const real = readFileSync(join(root, "bridge", "real-session-discount-bug.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { t: number; payload: HookPayload });
-  const live = new LiveAgentBackend({ autoTick: false, now: () => 0 });
-  const events: AgentEvent[] = [];
-  live.subscribe((e) => events.push(e));
-  let now = 0;
-  for (const { t, payload } of real) {
-    while (now < t / 1000) { live.tick(1 / 30); now += 1 / 30; }
-    live.ingest(payload);
-  }
-  const passed = events.filter((e) => e.type === "qa.passed").length;
-  const failed = events.filter((e) => e.type === "qa.failed").length;
-  check("real session: piped test runs that failed are reported as failed, never as passed", passed === 0 && failed === 2, `${passed} passed, ${failed} failed`);
-  check("real session: `cat …; node --test …` is a test run (Quinn), `cat a; cat b` alone is reading (Iris)",
-    events.some((e) => e.targetAgentId === "quinn" && e.message.startsWith("Bash · cat src/cart.js")) &&
-    classifyTool("Bash", { command: "cat src/cart.js; echo ----; cat test/cart.test.js" })?.agent === "iris");
-  check("real session: ToolSearch does not appear in the world", !events.some((e) => e.message.includes("ToolSearch")));
-  const task = live.snapshot().tasks[0]!;
-  check("real session: Claude's todo list and the final Stop come through", task.subtasks.length >= 3 && task.phase === "done", `${task.subtasks.length} cards, ${task.phase}`);
-}
-
-function replay(file: string): { live: LiveAgentBackend; events: AgentEvent[] } {
+function replay(file: string, watch?: (live: LiveAgentBackend, p: HookPayload) => void): { live: LiveAgentBackend; events: AgentEvent[] } {
   const lines = readFileSync(join(root, "bridge", file), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { t: number; payload: HookPayload });
   const live = new LiveAgentBackend({ autoTick: false, now: () => 0 });
   const events: AgentEvent[] = [];
@@ -172,28 +84,114 @@ function replay(file: string): { live: LiveAgentBackend; events: AgentEvent[] } 
   for (const { t, payload } of lines) {
     while (now < t / 1000) { live.tick(1 / 30); now += 1 / 30; }
     live.ingest(payload);
+    watch?.(live, payload);
   }
+  for (let k = 0; k < 30 * 20; k++) live.tick(1 / 30);
   return { live, events };
 }
+const at = (live: LiveAgentBackend, id: string) => live.snapshot().agents.find((a) => a.id === id)!;
+const there = (live: LiveAgentBackend, id: string, loc: string) => { const a = at(live, id); return a.location === loc || a.destination === loc; };
 
-// ── real session: fail, fix, pass (Claude Code 2.1.304) ──
+// ── a Tổ giúp việc session (Windows paths): Manager → Thủ thư → Trưởng phòng XDCB → QA → Manager ──
 {
-  const { live, events } = replay("real-session-fail-fix-pass.jsonl");
+  const seen: Record<string, boolean> = {};
+  const r = replay("to-giup-viec-session.jsonl", (live, p) => {
+    const key = `${p.hook_event_name}:${p.agent_type ?? p.tool_name ?? ""}`;
+    if (process.env.DEBUG_LIVE) console.log(key, ["orion", "iris", "kai", "quinn"].map((id) => { const a = at(live, id); return `${id}:${a.location}>${a.destination}:${a.status}:${a.activity}`; }).join(" | "));
+    if (key === "PreToolUse:Read" && !p.agent_type) seen.managerReads = there(live, "orion", "hub") && at(live, "orion").activity === "Đọc · CLAUDE.md";
+    if (key === "SubagentStart:thu-thu") seen.irisGoes = there(live, "iris", "research") && at(live, "orion").status === "thinking";
+    if (key === "PreToolUse:Grep") seen.untaggedOnSubagent = at(live, "iris").activity.startsWith("Tìm ·") && !at(live, "orion").activity.startsWith("Tìm");
+    if (key === "PreToolUse:truong-phong-xdcb-b" && p.tool_name === "Write") seen.kaiWrites = there(live, "kai", "dev") && at(live, "kai").activity === "Ghi · …/Kết quả/Báo cáo kết quả.md";
+    if (key === "SubagentStop:thu-thu") seen.irisReleased = at(live, "iris").status === "idle" && at(live, "orion").activity === "Đọc báo cáo của agent";
+    if (key === "SubagentStart:qa") seen.quinnGoes = there(live, "quinn", "testing");
+    if (key === "PermissionRequest:Bash") seen.waits = there(live, "orion", "hub") && live.snapshot().live?.sessions[0]?.status === "waiting";
+  });
+  const { live, events } = r;
   const task = live.snapshot().tasks[0]!;
   const phases = [task.history[0]!.from, ...task.history.map((h) => h.to)].join(" → ");
-  check("real session 3: the story reads look → plan → test fails → edit → test passes → diff → done",
-    phases === "queued → intake → research → planning → testing → implementation → testing → review → done", phases);
-  const outcomes = events.filter((e) => e.type === "qa.failed" || e.type === "qa.passed").map((e) => e.type).join(",");
-  check("real session 3: `node --test …; cat …` exits 0 but its output shows a failure → qa.failed, then qa.passed", outcomes === "qa.failed,qa.passed", outcomes);
-  check("real session 3: ticking todos off does not pull Piper back into the story", events.filter((e) => e.targetAgentId === "piper").length === 1);
-  check("real session 3: all four todo cards end up done", task.subtasks.length === 4 && task.subtasks.every((x) => x.done));
+  check("Tổ: the prompt becomes the task, titled with what Việt typed", task.title.startsWith("Rà soát hồ sơ gói thầu mẫu"));
+  check("Tổ: phases follow which agent works: Thủ thư (research), Trưởng phòng (implementation), QA (testing)", phases === "queued → intake → research → implementation → testing → done", phases);
+  check("Tổ: the Manager reads at the hub", seen.managerReads === true);
+  check("Tổ: SubagentStart sends that agent's robot to its room while the Manager waits", seen.irisGoes === true && seen.quinnGoes === true);
+  check("Tổ: a tool call with no agent_type during a subagent is shown on that subagent, not the Manager", seen.untaggedOnSubagent === true);
+  check("Tổ: Trưởng phòng XDCB (bản b) writes the report at the XDCB desk", seen.kaiWrites === true);
+  check("Tổ: SubagentStop frees the robot (back at its own desk) and the Manager reads the report", seen.irisReleased === true);
+  check("Tổ: a permission ask puts the session in waiting, Manager at the hub", seen.waits === true);
+  check("Tổ: each assignment and report shows as Manager ↔ agent", ["iris", "kai", "quinn"].every((id) => events.some((e) => e.type === "task.assigned" && e.agentId === "orion" && e.targetAgentId === id) && events.some((e) => e.agentId === id && e.targetAgentId === "orion")));
+  check("Tổ: QA's failed read is reported on QA", events.some((e) => e.agentId === "quinn" && e.message.startsWith("Lỗi · Đọc")));
+  check("Tổ: the permission warning starts with the Vietnamese prefix the sounds listen for", events.some((e) => e.agentId === "orion" && e.message.startsWith(`${NEEDS_PERMISSION} · Chạy lệnh`)));
+  check("Tổ: Claude's todo list becomes the task cards", task.subtasks.length === 3 && task.subtasks[1]!.title === "Trưởng phòng XDCB rà hồ sơ");
+  check("Tổ: Stop is worded as the end of a turn", events.some((e) => e.type === "task.completed" && e.message.includes("Xong lượt")));
+  check("Tổ: the project is the folder name, even from a Windows path", live.snapshot().live?.sessions[0]?.project === "Brainstorm");
+  const home = live.snapshot().agents.every((a) => {
+    const pos = slotFor(AGENTS.find((x) => x.id === a.id)!.home, 0).position;
+    return Math.hypot(a.position.x - pos.x, a.position.z - pos.z) < 1e-6 && a.status === "idle";
+  });
+  check("Tổ: after the session everyone is home and idle", home, live.snapshot().agents.filter((a) => a.status !== "idle").map((a) => `${a.id}:${a.status}@${a.location}`).join(" "));
 }
 
-// ── real session: a command that needs permission (claude -p denies it) ──
+// ── two subagents at once (Manager runs Thủ thư and Trích dữ kiện in parallel) ──
+{
+  const live = new LiveAgentBackend({ autoTick: false, now: () => 0 });
+  const base = { session_id: "par", cwd: "/p" };
+  live.ingest({ ...base, hook_event_name: "UserPromptSubmit", prompt: "song song" });
+  live.ingest({ ...base, hook_event_name: "SubagentStart", agent_type: "thu-thu" });
+  live.ingest({ ...base, hook_event_name: "SubagentStart", agent_type: "trich-du-kien" });
+  live.ingest({ ...base, hook_event_name: "PreToolUse", tool_name: "Read", agent_type: "thu-thu", tool_input: { file_path: "/p/a.md" } });
+  live.ingest({ ...base, hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: "/p/b.md" } });
+  for (let k = 0; k < 30; k++) live.tick(1 / 30);
+  const both = there(live, "iris", "research") && there(live, "troly2", "bot2");
+  const split = at(live, "iris").activity === "Đọc · a.md" && at(live, "troly2").activity === "Đọc · b.md";
+  live.ingest({ ...base, hook_event_name: "SubagentStop", agent_type: "trich-du-kien" });
+  for (let k = 0; k < 30; k++) live.tick(1 / 30);
+  const oneLeft = there(live, "iris", "research") && at(live, "iris").status === "working" && at(live, "orion").status === "thinking";
+  check("parallel subagents: both robots work in their rooms at once", both);
+  check("…a tagged call goes to its agent, an untagged one to the newest subagent", split, `${at(live, "iris").activity} | ${at(live, "troly2").activity}`);
+  check("…when one stops, the other keeps working and the Manager keeps waiting", oneLeft);
+}
+
+// ── the original sample session (a coding session): everything not in a subagent is the Manager ──
+const sample = readFileSync(join(root, "bridge", "sample-session.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { t: number; payload: HookPayload });
+{
+  let managerEdits = true;
+  const r = replay("sample-session.jsonl", (live, p) => {
+    if (p.hook_event_name === "PreToolUse" && p.tool_name === "Edit") managerEdits &&= there(live, "orion", "hub") && at(live, "orion").status === "working" && at(live, "kai").status === "idle";
+  });
+  const { live, events } = r;
+  const task = live.snapshot().tasks[0]!;
+  const phases = [task.history[0]!.from, ...task.history.map((h) => h.to)].join(" → ");
+  check("sample: the Explore subagent is Trợ lý 2, the only phase change", phases === "queued → intake → research → done", phases);
+  check("sample: the main session's own edits are the Manager's, at the hub", managerEdits);
+  check("sample: a failed test run is reported, without guessing pass or fail", events.some((e) => e.agentId === "orion" && e.message.startsWith("Lỗi · Chạy lệnh · npm test")) && !events.some((e) => e.type === "qa.passed" || e.type === "qa.failed"));
+  check("sample: task.completed is emitted", events.some((e) => e.type === "task.completed"));
+
+  const refusals = await Promise.all([
+    live.submitTask({ title: "x" }).then(() => "ok", (e: Error) => e.message),
+    live.setSpeed(2).then(() => "ok", (e: Error) => e.message),
+    live.pauseAgent("kai").then(() => "ok", (e: Error) => e.message),
+  ]);
+  check("the live view is read-only: submit, speed and pause are refused with a reason", refusals.every((x) => x.includes("real time") || x.includes("read-only")), refusals.join(" | "));
+
+  const hidden = new LiveAgentBackend({ autoTick: false, showPrompts: false });
+  hidden.ingest(sample[1]!.payload);
+  check("--hide-prompts keeps prompt text out of the world", hidden.snapshot().tasks[0]?.title === "Prompt 1" && hidden.snapshot().tasks[0]?.description === "");
+}
+
+// ── recorded real sessions (Claude Code 2.1.304, claude -p) ──
+{
+  const { live, events } = replay("real-session-discount-bug.jsonl");
+  check("real session: ToolSearch does not appear in the world", !events.some((e) => e.message.includes("ToolSearch")));
+  const task = live.snapshot().tasks[0]!;
+  check("real session: Claude's todo list and the final Stop come through", task.subtasks.length >= 3 && task.phase === "done", `${task.subtasks.length} cards, ${task.phase}`);
+}
+{
+  const { live } = replay("real-session-fail-fix-pass.jsonl");
+  const task = live.snapshot().tasks[0]!;
+  check("real session 3: all four todo cards end up done", task.subtasks.length === 4 && task.subtasks.every((x) => x.done));
+}
 {
   const { events } = replay("real-session-permission.jsonl");
-  check("real session 2: PermissionRequest shows Orion asking for permission", events.filter((e) => e.agentId === "orion" && e.message.startsWith("Needs your permission · Bash · node --test")).length === 2);
-  check("real session 2: Stop is worded as the end of a turn, not as finished work", events.some((e) => e.type === "task.completed" && e.message.includes("Turn ended")));
+  check("real session 2: each PermissionRequest shows the Manager asking for permission", events.filter((e) => e.agentId === "orion" && e.message.startsWith(`${NEEDS_PERMISSION} · Chạy lệnh · node --test`)).length === 2);
 }
 
 // ── several sessions at once: one focused session drives the robots ──
@@ -205,7 +203,9 @@ function recording(file: string, opts: { id?: string; offsetMs?: number; cwd?: s
     .map((l) => ({ t: l.t + (opts.offsetMs ?? 0), payload: { ...l.payload, ...(opts.id ? { session_id: opts.id } : {}), ...(opts.cwd ? { cwd: opts.cwd } : {}) } }));
 }
 const merge = (...lists: Line[][]): Line[] => lists.flat().sort((a, b) => a.t - b.t);
-const STATION: Record<string, string> = { orion: "hub", piper: "planning", iris: "research", kai: "dev", quinn: "testing", rex: "review" };
+// None of these recordings run a subagent at the moments checked, so the robot holding a session is the Manager.
+const STATION: Record<string, string> = { orion: "hub" };
+const holderOf = (_l: Line): string => "orion";
 const HOME = Object.fromEntries(AGENTS.map((a) => [a.id, a.home])) as Record<string, string>;
 
 /** Replays lines on a simulated clock (30 Hz ticks; the backend's wall clock is the same simulated time). */
@@ -253,12 +253,12 @@ const agentSig = (live: LiveAgentBackend) => live.snapshot().agents.map((a) => `
     mismatches.length === 0, `differs at ${mismatches.slice(0, 5).join(", ")} ms`);
   const bEvents = events.filter((e) => e.metadata?.["session"] === "B-billing");
   check("…while the other session's events still reach the feed, tagged with its session and project",
-    bEvents.some((e) => e.type === "task.created") && bEvents.some((e) => e.type === "qa.failed") && bEvents.some((e) => e.type === "qa.passed") &&
+    bEvents.some((e) => e.type === "task.created") && bEvents.some((e) => e.type === "task.completed") &&
     bEvents.every((e) => e.metadata?.["project"] === "billing"), `${bEvents.length} events`);
   const s = live.snapshot();
   const bTask = s.tasks.find((t) => t.origin?.sessionId === "B-billing");
   check("…and its task keeps its own phases and its origin (session, project)",
-    bTask?.phase === "done" && bTask.origin?.project === "billing" && bTask.history.some((h) => h.to === "testing") && s.tasks.find((t) => t.origin?.sessionId === "sample-0001")?.phase === "done",
+    bTask?.phase === "done" && bTask.origin?.project === "billing" && s.tasks.find((t) => t.origin?.sessionId === "sample-0001")?.phase === "done",
     `${bTask?.phase} ${bTask?.origin?.project}`);
   const listed = s.live?.sessions.map((x) => `${x.project}:${x.status}`).join(",");
   check("the snapshot lists both sessions, newest first, with title, project and status",
@@ -288,7 +288,7 @@ const agentSig = (live: LiveAgentBackend) => live.snapshot().agents.map((a) => `
       if (before === "A" && last === "B") {
         // Re-staging: B's holder is the robot of B's latest tool call; everyone else heads home.
         const lastTool = [...B].reverse().find((l) => l.t <= ms && l.payload.hook_event_name === "PreToolUse")!;
-        const holder = classifyTool(lastTool.payload.tool_name!, lastTool.payload.tool_input, lastTool.payload.cwd)!.agent;
+        const holder = holderOf(lastTool);
         lv.tick(1 / 30);
         const agents = lv.snapshot().agents;
         const h = agents.find((a) => a.id === holder)!;
@@ -334,7 +334,7 @@ const agentSig = (live: LiveAgentBackend) => live.snapshot().agents.map((a) => `
   check("a session that starts waiting for you takes focus at once, and Orion heads to the hub", focusAtAsk === "B-perm" && orionAtAsk === "hub", `${focusAtAsk} ${orionAtAsk}`);
   check("…it keeps focus while it waits, however busy the other session is", stayedOnB);
   check("…and when it ends, focus goes straight back to the session still working", focusAtEnd === "sample-0001", `${focusAtEnd}`);
-  const asks = events.filter((e) => e.agentId === "orion" && e.message.startsWith("Needs your permission"));
+  const asks = events.filter((e) => e.agentId === "orion" && e.message.startsWith(NEEDS_PERMISSION));
   check("the permission warning carries the waiting session's id, title and project", asks.length === 2 && asks.every((e) => e.metadata?.["session"] === "B-perm" && e.metadata?.["project"] === "infra" && typeof e.metadata?.["sessionTitle"] === "string"));
 }
 
@@ -371,8 +371,8 @@ const agentSig = (live: LiveAgentBackend) => live.snapshot().agents.map((a) => `
   const { live, run } = multi(lines.filter((l) => l.t <= 25_000));
   const bTool = [...lines].reverse().find((l) => l.t <= 25_000 && l.payload.session_id === "B-billing" && l.payload.hook_event_name === "PreToolUse")!;
   const aTool = [...lines].reverse().find((l) => l.t <= 25_000 && l.payload.session_id === "sample-0001" && l.payload.hook_event_name === "PreToolUse")!;
-  const bHolder = classifyTool(bTool.payload.tool_name!, bTool.payload.tool_input, bTool.payload.cwd)!.agent;
-  const aHolder = classifyTool(aTool.payload.tool_name!, aTool.payload.tool_input, aTool.payload.cwd)!.agent;
+  const bHolder = holderOf(bTool);
+  const aHolder = holderOf(aTool);
   run(25_200);
   await live.focusSession("B-billing");
   run(25_200 + 8000);
@@ -434,25 +434,30 @@ const agentSig = (live: LiveAgentBackend) => live.snapshot().agents.map((a) => `
   const bad = await fetch(`${httpUrl}/hook`, { method: "POST", body: "{not json" });
   check("malformed payloads are still answered 204 (never a hook error in Claude Code)", bad.status === 204);
 
-  const forwarder = join(root, "bridge", "forward-hook.sh");
-  // Claude Code runs hook commands through a shell; on Windows that is Git Bash, so run it the same way here.
-  const gitBash = [process.env.CLAUDE_CODE_GIT_BASH_PATH, "C:/Program Files/Git/bin/bash.exe", "C:/Program Files (x86)/Git/bin/bash.exe"].find((p) => p && existsSync(p));
-  const runForwarder = (env: Record<string, string>) =>
-    process.platform === "win32"
-      ? spawnSync(gitBash ?? "bash", [forwarder.replaceAll("\\", "/")], { input: payload, env: { ...process.env, ...env }, encoding: "utf8" })
-      : spawnSync(forwarder, { input: payload, env: { ...process.env, ...env }, encoding: "utf8" });
-  const payload = JSON.stringify({ hook_event_name: "PreToolUse", session_id: sample[1]!.payload.session_id, tool_name: "Edit", tool_input: { file_path: "/x/y.ts" } });
-  const run = runForwarder({ AAW_HOOK_URL: `${httpUrl}/hook` });
-  check("forward-hook.sh exits 0 and prints nothing", run.status === 0 && run.stdout === "" && run.stderr === "", `${run.status} ${JSON.stringify(run.stdout)} ${JSON.stringify(run.stderr)}`);
-  check("…and its payload moves Kai", await until(() => client.getSnapshot()?.agents.find((a) => a.id === "kai")?.destination === "dev" || client.getSnapshot()?.agents.find((a) => a.id === "kai")?.location === "dev"));
+  const payload = JSON.stringify({ hook_event_name: "SubagentStart", session_id: sample[1]!.payload.session_id, agent_type: "thu-thu" });
+  const irisMoves = () => until(() => there2(client, "iris", "research"));
+  const there2 = (c: WebSocketAgentBackend, id: string, loc: string) => { const a = c.getSnapshot()?.agents.find((x) => x.id === id); return a?.destination === loc || a?.location === loc; };
+  // forward-hook.mjs: what the installer sets up (`node "…/forward-hook.mjs"`), so it needs no Git Bash or curl on Windows.
+  const mjs = join(root, "bridge", "forward-hook.mjs");
+  const runMjs = (env: Record<string, string>) => spawnSync(process.execPath, [mjs], { input: payload, env: { ...process.env, ...env }, encoding: "utf8" });
+  const run = runMjs({ AAW_HOOK_URL: `${httpUrl}/hook` });
+  check("forward-hook.mjs exits 0 and prints nothing", run.status === 0 && run.stdout === "" && run.stderr === "", `${run.status} ${JSON.stringify(run.stdout)} ${JSON.stringify(run.stderr)}`);
+  check("…and its payload sends Thủ thư to her room", await irisMoves());
+
+  // forward-hook.sh: the older shell forwarder, still accepted by the installer. Needs sh and curl.
+  const sh = join(root, "bridge", "forward-hook.sh");
+  if (process.platform !== "win32") {
+    const r2 = spawnSync(sh, { input: JSON.stringify({ hook_event_name: "SubagentStart", session_id: "sh", agent_type: "qa" }), env: { ...process.env, AAW_HOOK_URL: `${httpUrl}/hook` }, encoding: "utf8" });
+    check("forward-hook.sh exits 0 and prints nothing", r2.status === 0 && r2.stdout === "" && r2.stderr === "", `${r2.status} ${JSON.stringify(r2.stderr)}`);
+  }
 
   await client.disconnect();
   await server.close();
   await live.disconnect();
 
   const t0 = Date.now();
-  const down = runForwarder({ AAW_HOOK_URL: "http://127.0.0.1:9/hook" });
-  check("with no server running it still exits 0, silently, within 2 s", down.status === 0 && down.stdout === "" && Date.now() - t0 < 2500, `${down.status} in ${Date.now() - t0} ms`);
+  const down = runMjs({ AAW_HOOK_URL: "http://127.0.0.1:9/hook" });
+  check("with no server running it still exits 0, silently, within 3 s", down.status === 0 && down.stdout === "" && down.stderr === "" && Date.now() - t0 < 3000, `${down.status} in ${Date.now() - t0} ms`);
 }
 
 console.log(failures === 0 ? "\nAll live checks passed." : `\n${failures} live check(s) failed.`);

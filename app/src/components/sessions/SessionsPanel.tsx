@@ -132,9 +132,9 @@ function SessionList() {
         ) : (
           <div className="flex items-center gap-2">
             <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-              <Plus size={14} /> New session
+              <Plus size={14} /> Giao việc mới
             </button>
-            <span className="text-[11.5px] text-mist-500">Runs on the server&apos;s machine</span>
+            <span className="text-[11.5px] text-mist-500">Mở một phiên Claude Code mới trên máy này</span>
           </div>
         )
       ) : (
@@ -399,16 +399,16 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
       }}
       aria-label="New session"
     >
-      <h3 className="text-[13px] font-semibold text-mist-100">New session</h3>
+      <h3 className="text-[13px] font-semibold text-mist-100">Giao việc mới cho Manager</h3>
       <div className="flex flex-col gap-1 text-[11.5px] text-mist-500">
-        <label htmlFor="new-session-cwd">Working directory (absolute path on the server&apos;s machine)</label>
+        <label htmlFor="new-session-cwd">Thư mục làm việc (đường dẫn đầy đủ, ví dụ thư mục Brainstorm)</label>
         <div className="flex gap-1.5">
           <input
             id="new-session-cwd"
             className="field min-w-0 flex-1 font-mono text-[12px]"
             value={cwd}
             onChange={(e) => setChosen(e.target.value)}
-            placeholder="/Users/you/project"
+            placeholder="C:\Users\ACV\...\Desktop\Brainstorm"
             spellCheck={false}
             autoComplete="off"
             disabled={busy}
@@ -467,7 +467,7 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
               void submit();
             }
           }}
-          placeholder="What should Claude do? (Enter starts, Shift+Enter for a new line; paste or drop images)"
+          placeholder="Anh giao việc gì cho Manager? (Enter để gửi, Shift+Enter xuống dòng)"
           disabled={busy}
           name="prompt"
         />

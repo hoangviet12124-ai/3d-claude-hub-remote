@@ -53,7 +53,11 @@ function replay(file: string): AgentEvent[] {
 // Live: only what is worth interrupting you for.
 {
   const cues = replay("real-session-fail-fix-pass.jsonl").map((e) => cueFor(e, "live")).filter(Boolean);
-  check("real session 3 in live mode sounds exactly: test fails, test passes, turn ends", cues.join(",") === "buzz,chime,fanfare", cues.join(","));
+  // Live mode does not guess whether a command's output means pass or fail, so a quiet session only sounds at the end.
+  check("real session 3 in live mode sounds once, when the turn ends", cues.join(",") === "fanfare", cues.join(","));
+  const tgv = replay("to-giup-viec-session.jsonl").map((e) => cueFor(e, "live")).filter(Boolean);
+  console.log(`    (Tổ session cues: ${tgv.join(",")})`);
+  check("a Tổ session rings for the permission ask and plays the fanfare at the end", tgv.includes("attention") && tgv[tgv.length - 1] === "fanfare", tgv.join(","));
   const perm = replay("real-session-permission.jsonl").map((e) => cueFor(e, "live")).filter(Boolean);
   check("a permission request rings the attention bell", perm.join(",") === "attention,attention,fanfare", perm.join(","));
   const sample = replay("sample-session.jsonl").map((e) => cueFor(e, "live")).filter(Boolean);

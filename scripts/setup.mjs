@@ -1,11 +1,21 @@
-// npm run setup [-- --no-hooks] [-- --skip-build]
+// npm run setup [-- --no-hooks] [-- --skip-build] [-- --project "<folder>"]
+//   --project  install the hooks for that one folder only (<folder>/.claude/settings.local.json) instead of
+//              ~/.claude/settings.json, so only Claude Code sessions started in that folder show up in the office.
 // One-time setup on a machine: checks, dependencies for the server and the app, Claude Code hooks, production build.
 // Safe to run again after `git pull`.
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { APP, ENGINE, NPM, bold, green, nodeVersionOk, red, run, step, which, yellow } from "./lib.mjs";
 
-const args = new Set(process.argv.slice(2));
+const argv = process.argv.slice(2);
+const args = new Set(argv);
+const pi = argv.indexOf("--project");
+const project = pi >= 0 ? argv[pi + 1] : undefined;
+if (pi >= 0 && (!project || !existsSync(project))) {
+  console.error(red(`  ✗ --project needs an existing folder, e.g. --project "C:\\Users\\you\\Desktop\\Brainstorm"${project ? ` (not found: ${project})` : ""}.`));
+  process.exit(1);
+}
 
 step("Checking this machine");
 if (!nodeVersionOk()) {
@@ -24,6 +34,11 @@ install(APP);
 
 if (args.has("--no-hooks")) {
   step("Skipping Claude Code hooks (--no-hooks)");
+} else if (project) {
+  step(`Installing Claude Code hooks for one folder (${join(project, ".claude", "settings.local.json")}; other hooks are kept, the file is backed up)`);
+  // Node directly, without a shell: the folder may have spaces (OneDrive), which cmd would split.
+  const r = spawnSync(process.execPath, [join(ENGINE, "scripts", "bridge-install.mjs"), "install", "--scope", "project", "--project", project], { cwd: ENGINE, stdio: "inherit" });
+  if (r.status !== 0) process.exit(r.status ?? 1);
 } else {
   step("Installing Claude Code hooks (~/.claude/settings.json; other hooks are kept, the file is backed up)");
   run(NPM, ["run", "-s", "bridge", "--", "install"], ENGINE);
@@ -39,4 +54,4 @@ if (args.has("--skip-build")) {
 console.log(`\n${green("✓ Setup done.")} Start everything with ${bold("npm run up")}.`);
 console.log("  New Claude Code sessions on this machine will show up in the 3D office.");
 console.log(`  On your other devices through Tailscale: ${bold("npm run up:tailscale")}. Start it at every login instead: ${bold("npm run autostart")}`);
-console.log(`  Remove the hooks any time with: ${bold("npm run hooks:remove")}`);
+console.log(`  Remove the hooks any time with: ${bold(project ? `npm run hooks:remove -- --scope project --project "${project}"` : "npm run hooks:remove")}`);

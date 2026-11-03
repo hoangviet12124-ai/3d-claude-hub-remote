@@ -44,7 +44,7 @@ export function CameraBar() {
       {follow ? (
         <div className="surface flex items-center gap-2 py-1 pl-3 pr-1 text-[12px] text-mist-300" role="status">
           <span className="h-2 w-2 rounded-full" style={{ background: follow.color }} />
-          Following <b className="font-semibold text-mist-100">{follow.name}</b>
+          Đang theo <b className="font-semibold text-mist-100">{follow.name}</b>
           <span className="hidden text-mist-500 sm:inline">· drag or Esc to release</span>
           <button type="button" className="btn btn-quiet h-6 px-1.5" onClick={() => setFollow(null)} aria-label="Stop following">
             <X size={13} />

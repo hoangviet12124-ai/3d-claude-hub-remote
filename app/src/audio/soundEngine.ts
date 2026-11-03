@@ -48,7 +48,7 @@ export function isStale(e: AgentEvent, nowMs: number): boolean {
 
 /** Orion's warning that Claude Code is blocked on the human (permission prompt or idle input). */
 export function isWaitingForYou(e: AgentEvent): boolean {
-  return e.agentId === "orion" && e.severity === "warning" && /^(Needs your permission|Claude Code needs you)/.test(e.message);
+  return e.agentId === "orion" && e.severity === "warning" && /^(Cần anh cấp quyền|Claude cần anh|Needs your permission|Claude Code needs you)/.test(e.message);
 }
 
 /**

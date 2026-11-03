@@ -1,11 +1,10 @@
-// Live source: mirrors a real Claude Code session from its hook payloads.
+// Live source: mirrors a real Claude Code session of Tổ giúp việc from its hook payloads.
 //
-// Nothing here is simulated. Each robot stands for one kind of real action, and moves only when a hook says
-// that action happened:
-//   Orion  your prompt, subagent delegation, waiting for you      Piper  todo lists and plan mode
-//   Iris   reading, searching, fetching                            Kai    editing files, running commands
-//   Quinn  test / lint / typecheck / build commands                Rex    git diff, log, show; PR review
-// Phases and progress are inferred from the latest action, so the UI labels this source "Live · Claude Code".
+// Nothing here is simulated. Each robot is one agent of the Tổ, and moves only when a hook says that agent is working:
+//   Manager      the main session: your prompt, its own tool calls, waiting for you
+//   other robots  a subagent (SubagentStart … SubagentStop), matched by its agent file name (subagentRole)
+// While a subagent runs, tool calls without an agent of their own are shown on that subagent's robot: the main session
+// waits for it. Phases and progress are inferred from who is working, so the UI labels this source "Live · Claude Code".
 // With several sessions at once, one focused session drives the robots (see LiveAgentBackend below).
 import type { AgentId, AgentState } from "../agents/agentTypes.ts";
 import { AGENTS, getAgent } from "../agents/AgentRegistry.ts";
@@ -47,11 +46,18 @@ interface Role {
 
 const ROLES: Record<AgentId, Role> = {
   orion: { phase: "intake", location: "hub" },
-  piper: { phase: "planning", location: "planning" },
-  iris: { phase: "research", location: "research" },
-  kai: { phase: "implementation", location: "dev" },
   quinn: { phase: "testing", location: "testing" },
+  kai: { phase: "implementation", location: "dev" },
+  troly1: { phase: "research", location: "bot1" },
+  troly2: { phase: "research", location: "bot2" },
+  iris: { phase: "research", location: "research" },
+  piper: { phase: "research", location: "product" },
   rex: { phase: "review", location: "review" },
+  taichinh: { phase: "implementation", location: "fin" },
+  quytrinh: { phase: "implementation", location: "proc" },
+  gopy: { phase: "implementation", location: "draft" },
+  chuyende: { phase: "research", location: "study" },
+  caitien: { phase: "planning", location: "ops" },
 };
 
 const READ_TOOLS = /^(Read|Grep|Glob|LS|WebFetch|WebSearch|NotebookRead|ListMcpResources|ReadMcpResource)$/;
@@ -60,66 +66,15 @@ const EDIT_TOOLS = /^(Edit|MultiEdit|Write|NotebookEdit)$/;
 const DELEGATE_TOOLS = /^(Agent|Task|Skill|AskUserQuestion)$/;
 /** Claude Code's own plumbing (loading tool schemas and the like): not work done for the user, so not shown. */
 const IGNORED_TOOLS = /^(ToolSearch)$/;
-// Matched against the start of one command (after any `VAR=value` prefixes), never against arguments,
-// so `cat test/cart.test.js` is reading, not testing.
-const TEST_COMMAND = new RegExp(
-  "^(?:\\w+=\\S*\\s+)*(?:" + [
-    "(?:npm|pnpm|yarn|bun)\\s+(?:run\\s+)?(?:test|lint|typecheck|type-check|check|build)\\b",
-    "(?:npx|pnpm(?:\\s+exec)?|yarn|bunx)\\s+(?:jest|vitest|mocha|playwright|tsc|eslint|biome)\\b",
-    "node\\s+(?:--\\S+\\s+)*--test\\b",
-    "(?:jest|vitest|mocha|tsc|eslint|ruff|mypy|pytest|rspec|phpunit)\\b",
-    "python3?\\s+-m\\s+(?:pytest|unittest|mypy)\\b",
-    "(?:cargo|go|dotnet|mvn|gradle|swift|deno|bun)\\s+(?:test|build|vet|check|clippy)\\b",
-    "make\\s+(?:test|check|lint)\\b",
-  ].join("|") + ")",
-);
-const REVIEW_COMMAND = /^\s*(git\s+(diff|log|show|blame)\b|gh\s+pr\s+(view|diff|review|checks)\b)/;
-const READ_COMMAND = /^\s*(cat|head|tail|less|more|ls|tree|find|fd|grep|rg|ag|wc|file|stat|pwd|echo|printf|which|type|du|df|jq|sed\s+-n|awk|sort|uniq|cut|git\s+(status|branch|remote|ls-files))\b/;
+/** Message prefixes the sound engine listens for (viewer/soundEngine.ts): keep them in sync. */
+export const NEEDS_PERMISSION = "Cần anh cấp quyền";
+export const NEEDS_YOU = "Claude cần anh";
 
 export interface Classified {
-  agent: AgentId;
-  /** Short, factual description of what the session is doing, e.g. "Edit · src/app.ts". */
+  /** "plan": a todo list or plan mode; "ask": a question to you; "work": everything else. */
+  kind: "work" | "plan" | "ask";
+  /** Short, factual description of what the session is doing, e.g. "Sửa · Báo cáo.md". */
   label: string;
-}
-
-/** Split a shell command into the commands it runs (`a; b && c | d` → a, b, c, d). Good enough for classification. */
-function segments(command: string): string[] {
-  return command.split(/;|&&|\|\||\||\n/).map((s) => s.replace(/^\s*\(+|\)+\s*$/g, "").trim()).filter(Boolean);
-}
-
-export type TestOutcome = "passed" | "failed" | "unknown";
-
-const FAIL_MARKERS = [
-  /ℹ fail [1-9]/, /^# fail [1-9]/m, // node:test (spec and TAP reporters)
-  /\b[1-9]\d* (failed|failing)\b/i, /Tests?:\s+[1-9]\d* failed/, // jest, vitest, mocha, pytest summary
-  /^\s*(FAIL|FAILED)\b/m, /^\s*[✕✖×✗]\s/m, // per-test failure lines
-  /test result: FAILED/, /panicked at/, // cargo
-  /error TS\d+/, /Found [1-9]\d* errors?/, // tsc
-  /npm ERR!|npm error/, /Error: Cannot find module/, /AssertionError/, /Traceback \(most recent call last\)/,
-];
-const PASS_MARKERS = [
-  /ℹ pass [1-9]\d*[\s\S]*ℹ fail 0\b/, /^# fail 0\b/m,
-  /\b[1-9]\d* passed\b/i, /Tests?:\s+[1-9]\d* passed/,
-  /test result: ok/, /Found 0 errors/, /\bAll (tests|specs|checks) passed\b/i,
-];
-
-/**
- * Pass/fail from a command's own output. Exit codes alone are not enough: Claude often pipes test runs
- * (`npm test 2>&1 | tail -15`), and the pipe reports tail's exit code, so a failing run arrives as PostToolUse.
- */
-export function testOutcome(output: string): TestOutcome {
-  if (FAIL_MARKERS.some((r) => r.test(output))) return "failed";
-  if (PASS_MARKERS.some((r) => r.test(output))) return "passed";
-  return "unknown";
-}
-
-function bashOutput(response: unknown): string {
-  if (typeof response === "string") return response;
-  if (response && typeof response === "object") {
-    const r = response as Record<string, unknown>;
-    return `${str(r["stdout"])}\n${str(r["stderr"])}`;
-  }
-  return "";
 }
 
 function str(v: unknown): string {
@@ -133,48 +88,56 @@ function oneLine(s: string, max: number): string {
 
 function relPath(path: string, cwd: string | undefined): string {
   if (!path) return "";
-  if (cwd && path.startsWith(cwd + "/")) return path.slice(cwd.length + 1);
-  const parts = path.split("/");
-  return parts.length > 2 ? `…/${parts.slice(-2).join("/")}` : path;
+  // Windows paths come with backslashes; compare and show them with "/".
+  const p = path.replaceAll("\\", "/");
+  const c = cwd?.replaceAll("\\", "/");
+  if (c && p.toLowerCase().startsWith(c.toLowerCase() + "/")) return p.slice(c.length + 1);
+  const parts = p.split("/");
+  return parts.length > 2 ? `…/${parts.slice(-2).join("/")}` : p;
 }
 
 /**
- * Which robot a tool call belongs to, and what to say about it; null for plumbing that is not shown.
- * Pure, so it is easy to test and tune.
+ * What a tool call is, in words the office shows; null for plumbing that is not shown. Which robot does it is
+ * decided by the session (the Manager, or the subagent that is running), not by the tool. Pure, so it is easy to test.
  */
 export function classifyTool(tool: string, input: Record<string, unknown> = {}, cwd?: string): Classified | null {
   if (IGNORED_TOOLS.test(tool)) return null;
   const target = relPath(str(input["file_path"]) || str(input["notebook_path"]) || str(input["path"]), cwd);
-  if (tool === "Bash") {
-    const full = str(input["command"]);
-    const label = `Bash · ${oneLine(full, 60)}`;
-    const parts = segments(full);
-    // A compound command belongs to its most telling part: tests, then review, then pure reading.
-    if (parts.some((p) => TEST_COMMAND.test(p))) return { agent: "quinn", label };
-    if (parts.some((p) => REVIEW_COMMAND.test(p))) return { agent: "rex", label };
-    if (parts.length > 0 && parts.every((p) => READ_COMMAND.test(p))) return { agent: "iris", label };
-    return { agent: "kai", label };
-  }
-  if (EDIT_TOOLS.test(tool)) return { agent: "kai", label: `${tool} · ${target || "file"}` };
+  if (tool === "Bash" || tool === "PowerShell") return { kind: "work", label: `Chạy lệnh · ${oneLine(str(input["command"]), 60)}` };
+  if (EDIT_TOOLS.test(tool)) return { kind: "work", label: `${tool === "Write" ? "Ghi" : "Sửa"} · ${target || "file"}` };
   if (READ_TOOLS.test(tool)) {
     const what = target || oneLine(str(input["pattern"]) || str(input["query"]) || str(input["url"]), 48);
-    return { agent: "iris", label: what ? `${tool} · ${what}` : tool };
+    const verb = /^Web/.test(tool) ? "Tra trên web" : /^(Grep|Glob|LS)$/.test(tool) ? "Tìm" : "Đọc";
+    return { kind: "work", label: what ? `${verb} · ${what}` : verb };
   }
-  if (PLAN_TOOLS.test(tool)) return { agent: "piper", label: tool === "TodoWrite" ? "Updating the todo list" : tool };
+  if (PLAN_TOOLS.test(tool)) return { kind: "plan", label: tool === "TodoWrite" ? "Cập nhật danh sách việc" : "Lập kế hoạch" };
   if (DELEGATE_TOOLS.test(tool)) {
+    if (tool === "AskUserQuestion") return { kind: "ask", label: "Hỏi anh một câu" };
     const who = str(input["subagent_type"]) || str(input["skill"]) || "";
-    return { agent: "orion", label: tool === "AskUserQuestion" ? "Asking you a question" : `${tool}${who ? ` · ${who}` : ""}` };
+    return { kind: "work", label: `${tool === "Skill" ? "Dùng skill" : "Giao việc"}${who ? ` · ${who}` : ""}` };
   }
-  if (tool.startsWith("mcp__")) return { agent: "iris", label: tool.replace(/^mcp__/, "").replace(/__/g, " · ") };
-  return { agent: "kai", label: tool };
+  if (tool.startsWith("mcp__")) return { kind: "work", label: tool.replace(/^mcp__/, "").replace(/__/g, " · ") };
+  return { kind: "work", label: tool };
 }
 
-function subagentRole(agentType: string): AgentId {
-  if (/explore|research|search/i.test(agentType)) return "iris";
-  if (/plan/i.test(agentType)) return "piper";
-  if (/review|audit|security/i.test(agentType)) return "rex";
-  if (/test|qa/i.test(agentType)) return "quinn";
-  return "kai";
+/**
+ * Which robot a subagent is, from the name of its agent file in .claude/agents (Ma trận phân vai 1.1). Agents with no
+ * room of their own (general-purpose, Explore, a new file not listed here) are shown on Trợ lý 2.
+ */
+export function subagentRole(agentType: string): AgentId {
+  const t = agentType.toLowerCase();
+  if (/^qa\b|kiem-tra/.test(t)) return "quinn";
+  if (/truong-phong-xdcb|xdcb/.test(t)) return "kai";
+  if (/thu-thu/.test(t)) return "iris";
+  if (/so-hoa/.test(t)) return "piper";
+  if (/thu-ky-rnd|rnd/.test(t)) return "rex";
+  if (/ky-su-cai-tien|cai-tien/.test(t)) return "caitien";
+  if (/nghien-cuu|phuong-phap|chuyen-de/.test(t)) return "chuyende";
+  if (/tai-chinh/.test(t)) return "taichinh";
+  if (/quy-trinh/.test(t)) return "quytrinh";
+  if (/gop-y/.test(t)) return "gopy";
+  if (/tom-tat/.test(t)) return "troly1";
+  return "troly2";
 }
 
 export interface LiveOptions {
@@ -223,6 +186,8 @@ interface LiveSession {
   holder: AgentId | null;
   /** Every robot this session holds and where: the scene to restore when the session gets focus. */
   stage: Map<AgentId, Stage>;
+  /** Subagents running now, oldest first: tool calls are shown on the newest one while the Manager waits. */
+  subagents: AgentId[];
 }
 
 function projectOf(cwd: string): string {
@@ -267,7 +232,7 @@ export class LiveAgentBackend implements AgentBackend {
     for (const profile of AGENTS) {
       this.controllers.set(profile.id, new AgentController(profile, {
         walkSpeed: SIM_CONFIG.walkSpeed,
-        onArrived: (id, location) => this.emit({ type: "agent.arrived", agentId: id, message: `${getAgent(id).name} arrived at the ${LOCATIONS[location].label}`, feed: false, metadata: { location } }),
+        onArrived: (id, location) => this.emit({ type: "agent.arrived", agentId: id, message: `${getAgent(id).name} đến ${LOCATIONS[location].label}`, feed: false, metadata: { location } }),
         positionOf: (id) => this.ctrl(id).state.position,
         faceIfIdle: () => {},
       }));
@@ -297,10 +262,10 @@ export class LiveAgentBackend implements AgentBackend {
     this.timer = null;
   }
 
-  async start(): Promise<void> { this.setStatus("running", "system.started", "Live view running"); }
-  async resume(): Promise<void> { this.setStatus("running", "system.resumed", "Live view resumed"); }
-  async pause(): Promise<void> { this.setStatus("paused", "system.paused", "Live view paused (Claude Code keeps working; events are still recorded)"); }
-  async stop(): Promise<void> { this.setStatus("ready", "system.stopped", "Live view stopped"); }
+  async start(): Promise<void> { this.setStatus("running", "system.started", "Đang theo dõi"); }
+  async resume(): Promise<void> { this.setStatus("running", "system.resumed", "Theo dõi tiếp"); }
+  async pause(): Promise<void> { this.setStatus("paused", "system.paused", "Tạm dừng hình (Claude Code vẫn làm việc; sự kiện vẫn được ghi)"); }
+  async stop(): Promise<void> { this.setStatus("ready", "system.stopped", "Dừng theo dõi"); }
 
   async reset(): Promise<void> {
     this.tasks.clear();
@@ -311,7 +276,7 @@ export class LiveAgentBackend implements AgentBackend {
     this.taskSeq = this.linkSeq = this.eventSeq = 0;
     this.clock = 0;
     for (const c of this.controllers.values()) c.resetToHome();
-    this.emit({ type: "system.reset", message: "Live view cleared" });
+    this.emit({ type: "system.reset", message: "Đã xóa màn hình theo dõi" });
     this.publish();
   }
 
@@ -380,7 +345,7 @@ export class LiveAgentBackend implements AgentBackend {
     const now = this.opts.now();
     let s = this.sessions.get(id);
     if (!s) {
-      s = { id, cwd: "", project: "", title: `Session ${id.slice(0, 8)}`, titled: false, status: "idle", lastActivity: now, waitingSince: null, taskId: null, holder: null, stage: new Map() };
+      s = { id, cwd: "", project: "", title: `Session ${id.slice(0, 8)}`, titled: false, status: "idle", lastActivity: now, waitingSince: null, taskId: null, holder: null, stage: new Map(), subagents: [] };
       this.sessions.set(id, s);
     }
     if (p.cwd && p.cwd !== s.cwd) {
@@ -433,11 +398,12 @@ export class LiveAgentBackend implements AgentBackend {
   private handle(s: LiveSession, p: HookPayload): boolean {
     switch (p.hook_event_name) {
       case "SessionStart":
-        this.emit({ type: "system.started", message: `Claude Code session ${p.source ?? "started"}${p.cwd ? ` in ${p.cwd.split("/").pop()}` : ""}` });
+        this.emit({ type: "system.started", message: `Phiên Claude Code bắt đầu${p.cwd ? ` ở ${projectOf(p.cwd)}` : ""}` });
         break;
       case "SessionEnd":
-        this.finish(s, "failed", `Session ended (${p.reason ?? "exit"}) before Claude finished`);
-        this.emit({ type: "system.stopped", message: `Claude Code session ended (${p.reason ?? "exit"})` });
+        this.finish(s, "failed", `Phiên đã đóng (${p.reason ?? "exit"}) trước khi Claude xong`);
+        s.subagents = [];
+        this.emit({ type: "system.stopped", message: `Phiên Claude Code đã đóng (${p.reason ?? "exit"})` });
         for (const id of [...s.stage.keys()]) this.unhold(s, id);
         break;
       case "UserPromptSubmit":
@@ -447,66 +413,71 @@ export class LiveAgentBackend implements AgentBackend {
         const c = p.tool_name ? classifyTool(p.tool_name, p.tool_input, p.cwd) : null;
         if (!c) return false;
         // Ticking items off an existing todo list is bookkeeping: update the cards, keep the current robot working.
-        // Only a new list, or one that grew, counts as Piper planning.
         if (p.tool_name === "TodoWrite" && !this.onTodos(s, p.tool_input?.["todos"])) break;
-        this.onTool(s, c);
+        this.onTool(s, c, this.actor(s, p));
         break;
       }
-      case "PostToolUse": {
-        const c = p.tool_name ? classifyTool(p.tool_name, p.tool_input, p.cwd) : null;
-        if (!c) return false;
-        // Exit 0 is not proof for a test run: a pipe (`| tail`) reports the last command's status.
-        const piped = segments(str(p.tool_input?.["command"])).length > 1;
-        const seen = c.agent === "quinn" ? testOutcome(bashOutput(p.tool_response)) : "passed";
-        this.onToolResult(s, c, seen === "unknown" && !piped ? "passed" : seen, "");
-        break;
-      }
+      case "PostToolUse":
+        return false; // the robot keeps working until the next call; only failures are worth showing
       case "PostToolUseFailure": {
         const c = p.tool_name ? classifyTool(p.tool_name, p.tool_input, p.cwd) : null;
         if (!c || p.is_interrupt) return false;
-        this.onToolResult(s, c, "failed", str(p.error).split("\n")[0] ?? "");
+        this.onToolFailed(s, c, this.actor(s, p), str(p.error).split("\n")[0] ?? "");
         break;
       }
       case "PermissionRequest": {
         const c = p.tool_name ? classifyTool(p.tool_name, p.tool_input, p.cwd) : null;
-        this.hold(s, "orion", "hub", "thinking", `Waiting for your permission${c ? `: ${c.label}` : ""}`);
-        this.emit({ type: "agent.message", agentId: "orion", taskId: this.task(s)?.id, severity: "warning", message: `Needs your permission${c ? ` · ${c.label}` : ""}` });
+        this.hold(s, "orion", "hub", "thinking", `Chờ anh cấp quyền${c ? `: ${c.label}` : ""}`);
+        this.emit({ type: "agent.message", agentId: "orion", taskId: this.task(s)?.id, severity: "warning", message: `${NEEDS_PERMISSION}${c ? ` · ${c.label}` : ""}` });
         break;
       }
       case "PermissionDenied": {
         const c = p.tool_name ? classifyTool(p.tool_name, p.tool_input, p.cwd) : null;
-        if (c) this.emoteFor(s, c.agent, "error", `Not allowed · ${c.label}`);
-        this.emit({ type: "agent.message", agentId: c?.agent ?? "orion", taskId: this.task(s)?.id, severity: "warning", message: `Not allowed${c ? ` · ${c.label}` : ""}` });
+        const who = this.actor(s, p);
+        if (c) this.emoteFor(s, who, "error", `Không được phép · ${c.label}`);
+        this.emit({ type: "agent.message", agentId: who, taskId: this.task(s)?.id, severity: "warning", message: `Không được phép${c ? ` · ${c.label}` : ""}` });
         break;
       }
       case "SubagentStart": {
         const role = subagentRole(p.agent_type ?? "");
+        const name = p.agent_type || "general-purpose";
         const task = this.task(s);
+        s.subagents.push(role);
         this.linkFor(s, "orion", role, "assign");
-        this.emit({ type: "task.assigned", agentId: "orion", targetAgentId: role, taskId: task?.id, message: `Subagent started: ${p.agent_type ?? "general-purpose"}` });
-        this.hold(s, role, ROLES[role].location, "working", `Subagent · ${p.agent_type ?? "general-purpose"}`);
+        this.emit({ type: "task.assigned", agentId: "orion", targetAgentId: role, taskId: task?.id, message: `Manager giao việc cho ${getAgent(role).name} (${name})` });
+        this.hold(s, role, ROLES[role].location, "working", `Đang làm · ${name}`);
+        if (task) this.observePhase(task, ROLES[role].phase, role);
+        if (s.holder === "orion" || s.holder === null) this.hold(s, "orion", "hub", "thinking", `Chờ ${getAgent(role).name} báo cáo`);
         break;
       }
       case "SubagentStop": {
         const role = subagentRole(p.agent_type ?? "");
+        const i = s.subagents.lastIndexOf(role);
+        if (i >= 0) s.subagents.splice(i, 1);
         this.linkFor(s, role, "orion", "report");
-        this.emit({ type: "agent.message", agentId: role, targetAgentId: "orion", taskId: this.task(s)?.id, message: `Subagent finished: ${p.agent_type ?? "general-purpose"}` });
-        if (s.holder !== role) this.unhold(s, role);
+        this.emit({ type: "agent.message", agentId: role, targetAgentId: "orion", taskId: this.task(s)?.id, message: `${getAgent(role).name} báo cáo xong cho Manager (${p.agent_type || "general-purpose"})` });
+        if (!s.subagents.includes(role)) {
+          this.unhold(s, role);
+          if (s.holder === role) s.holder = null;
+        }
+        if (s.subagents.length === 0) this.switchTo(s, "orion", "Đọc báo cáo của agent", "thinking");
         break;
       }
       case "Notification":
-        this.hold(s, "orion", "hub", "thinking", `Waiting for you${p.message ? `: ${oneLine(p.message, 60)}` : ""}`);
-        this.emit({ type: "agent.message", agentId: "orion", taskId: this.task(s)?.id, severity: "warning", message: `Claude Code needs you${p.message ? `: ${oneLine(p.message, 80)}` : ""}` });
+        this.hold(s, "orion", "hub", "thinking", `Chờ anh${p.message ? `: ${oneLine(p.message, 60)}` : ""}`);
+        this.emit({ type: "agent.message", agentId: "orion", taskId: this.task(s)?.id, severity: "warning", message: `${NEEDS_YOU}${p.message ? `: ${oneLine(p.message, 80)}` : ""}` });
         break;
       case "PreCompact":
-        this.hold(s, "piper", "planning", "thinking", "Compacting the conversation");
+        this.hold(s, "orion", "hub", "thinking", "Nén lại hội thoại");
         break;
       case "Stop":
         // Stop means the turn ended, not that the work is finished: Claude may be asking a question.
-        this.finish(s, "done", "Turn ended · your move");
+        s.subagents = [];
+        this.finish(s, "done", "Xong lượt · chờ anh");
         break;
       case "StopFailure":
-        this.finish(s, "failed", `Claude stopped with an error: ${oneLine(str(p.error), 80)}`);
+        s.subagents = [];
+        this.finish(s, "failed", `Claude dừng vì lỗi: ${oneLine(str(p.error), 80)}`);
         break;
       default:
         return false; // unknown or uninteresting event: ignore
@@ -516,7 +487,7 @@ export class LiveAgentBackend implements AgentBackend {
 
   private onPrompt(s: LiveSession, p: HookPayload): void {
     const prev = this.task(s);
-    if (prev && !isTerminal(prev.phase)) this.finish(s, "failed", "Interrupted: a new prompt arrived before Claude finished");
+    if (prev && !isTerminal(prev.phase)) this.finish(s, "failed", "Dừng giữa chừng: anh gửi yêu cầu mới trước khi Claude xong");
     const n = ++this.taskSeq;
     const id = `T-${String(n).padStart(3, "0")}`;
     // What you typed, without the IDE selection or slash-command wrappers Claude Code adds.
@@ -541,15 +512,30 @@ export class LiveAgentBackend implements AgentBackend {
     this.tasks.set(id, task);
     s.taskId = id;
     this.emit({ type: "task.created", taskId: id, message: `${id}: ${title}` });
-    this.switchTo(s, "orion", "Reading your prompt", "thinking");
+    this.switchTo(s, "orion", "Đọc yêu cầu của anh", "thinking");
   }
 
-  private onTool(s: LiveSession, c: Classified): void {
+  /**
+   * Who does a tool call: the agent named in the hook (newer Claude Code versions send `agent_type` for calls made
+   * inside a subagent), else the newest running subagent, else the Manager. The main session waits while a subagent works.
+   */
+  private actor(s: LiveSession, p: HookPayload): AgentId {
+    if (p.agent_type) return subagentRole(p.agent_type);
+    return s.subagents[s.subagents.length - 1] ?? "orion";
+  }
+
+  private onTool(s: LiveSession, c: Classified, agent: AgentId): void {
     this.ensureTask(s);
-    this.switchTo(s, c.agent, c.label, "working");
-    const task = this.task(s)!;
-    if (c.agent === "quinn") this.emit({ type: "qa.started", agentId: "quinn", taskId: task.id, message: c.label, feed: false });
-    if (c.agent === "rex") this.emit({ type: "review.started", agentId: "rex", taskId: task.id, message: c.label, feed: false });
+    if (agent === "orion" && c.kind === "ask") {
+      this.hold(s, "orion", "hub", "thinking", c.label);
+      return;
+    }
+    if (agent !== "orion") {
+      // A subagent's own step: its robot keeps the desk; the Manager stays waiting at the hub.
+      this.hold(s, agent, ROLES[agent].location, "working", c.label);
+      return;
+    }
+    this.switchTo(s, "orion", c.label, c.kind === "plan" ? "thinking" : "working");
   }
 
   /**
@@ -569,33 +555,15 @@ export class LiveAgentBackend implements AgentBackend {
     const known = new Set(cur.subtasks.map((x) => x.title));
     const added = subtasks.filter((x) => !known.has(x.title)).length;
     if (cur.subtasks.length === 0 && subtasks.length > 0) {
-      this.emit({ type: "plan.created", agentId: "piper", taskId: task.id, message: `Todo list with ${subtasks.length} items`, metadata: { subtasks: subtasks.map((x) => x.title) } });
+      this.emit({ type: "plan.created", agentId: "orion", taskId: task.id, message: `Danh sách ${subtasks.length} bước việc`, metadata: { subtasks: subtasks.map((x) => x.title) } });
       return true;
     }
     return added > 0;
   }
 
-  private onToolResult(s: LiveSession, c: Classified, outcome: TestOutcome, error: string): void {
-    const task = this.task(s);
-    const what = c.label.replace(/^Bash · /, "");
-    if (c.agent === "quinn") {
-      if (outcome === "unknown") {
-        // Honest middle ground: the run happened, but its output does not say how it went.
-        this.emit({ type: "agent.message", agentId: "quinn", taskId: task?.id, message: `Ran · ${what} (result not visible in the output)` });
-        return;
-      }
-      const ok = outcome === "passed";
-      this.emoteFor(s, "quinn", ok ? "success" : "error", ok ? `✓ ${what}` : `✗ ${what}`);
-      this.emit(ok
-        ? { type: "qa.passed", agentId: "quinn", taskId: task?.id, severity: "success", message: `Passed · ${what}` }
-        : { type: "qa.failed", agentId: "quinn", taskId: task?.id, severity: "warning", message: `Failed · ${what}${error ? ` (${error})` : ""}`, metadata: { error } });
-      if (!ok && task) this.bump(task);
-      return;
-    }
-    if (outcome === "failed") {
-      this.emoteFor(s, c.agent, "error", `✗ ${c.label}`);
-      this.emit({ type: "agent.message", agentId: c.agent, taskId: task?.id, severity: "warning", message: `Failed · ${c.label}${error ? ` (${error})` : ""}` });
-    }
+  private onToolFailed(s: LiveSession, c: Classified, agent: AgentId, error: string): void {
+    this.emoteFor(s, agent, "error", `✗ ${c.label}`);
+    this.emit({ type: "agent.message", agentId: agent, taskId: this.task(s)?.id, severity: "warning", message: `Lỗi · ${c.label}${error ? ` (${oneLine(error, 80)})` : ""}` });
   }
 
   /** Hand the session's attention to `agent`: the previous holder is released, a link shows the handoff. */
@@ -623,7 +591,7 @@ export class LiveAgentBackend implements AgentBackend {
       next.history = [...cur.history, { from: cur.phase, to: phase, signal: "observed", at: this.clock }];
       if (phase === "implementation") {
         next.iteration = cur.iteration + 1;
-        this.emit({ type: "implementation.started", agentId: "kai", taskId: task.id, message: `Implementation round ${next.iteration}`, feed: false, metadata: { iteration: next.iteration } });
+        this.emit({ type: "implementation.started", agentId: agent, taskId: task.id, message: `Làm lần ${next.iteration}`, feed: false, metadata: { iteration: next.iteration } });
       }
       this.emit({ type: "task.status_changed", taskId: task.id, agentId: agent, message: `${task.id}: ${cur.phase} → ${phase}`, feed: false, metadata: { from: cur.phase, to: phase, signal: "observed" } });
     }
@@ -657,12 +625,12 @@ export class LiveAgentBackend implements AgentBackend {
     if (holder && holder !== "orion") this.linkFor(s, holder, "orion", "report");
     if (outcome === "done") {
       this.actFor(s, "orion", [
-        { kind: "move", to: "hub", activity: "Heading to the hub" },
-        { kind: "emote", status: "success", duration: SIM_CONFIG.durations.announce, activity: `${task.id} done` },
+        { kind: "move", to: "hub", activity: "Về bàn Manager" },
+        { kind: "emote", status: "success", duration: SIM_CONFIG.durations.announce, activity: `${task.id} xong` },
       ]);
       this.emit({ type: "task.completed", agentId: "orion", taskId: task.id, severity: "success", message: `${task.id} · ${message}` });
     } else {
-      this.emoteFor(s, "orion", "error", `${task.id} stopped`);
+      this.emoteFor(s, "orion", "error", `${task.id} dừng`);
       this.emit({ type: "task.failed", agentId: "orion", taskId: task.id, severity: "error", message: `${task.id} · ${message}` });
     }
   }
@@ -786,9 +754,11 @@ export class LiveAgentBackend implements AgentBackend {
       c.clear();
     } else {
       c.clear();
-      c.enqueue({ kind: "move", to: location, activity: `Heading to the ${LOCATIONS[location].label}` });
+      c.enqueue({ kind: "move", to: location, activity: `Đến ${LOCATIONS[location].label}` });
     }
     c.enqueue({ kind: "wait", until: () => this.holds.get(agent) !== token, timeout: Number.MAX_SAFE_INTEGER, status, activity });
+    // Start it now, so the snapshot published for this hook already shows the new activity (no one-frame "Idle").
+    c.step(0);
   }
 
   private act(agent: AgentId, actions: Action[]): void {
@@ -796,6 +766,7 @@ export class LiveAgentBackend implements AgentBackend {
     const c = this.ctrl(agent);
     c.clear();
     c.enqueue(...actions);
+    c.step(0);
     this.releasedAt.set(agent, this.clock);
   }
 
@@ -810,10 +781,12 @@ export class LiveAgentBackend implements AgentBackend {
     c.enqueue({ kind: "emote", status, duration, activity });
     // Go back to holding if this agent still has the session's attention.
     if (holding && token !== undefined) c.enqueue({ kind: "wait", until: () => this.holds.get(agent) !== token, timeout: Number.MAX_SAFE_INTEGER, status: keepStatus, activity: keep });
+    c.step(0);
   }
 
   private release(agent: AgentId): void {
     this.holds.set(agent, ++this.holdSeq);
+    this.ctrl(agent).step(0);
     this.releasedAt.set(agent, this.clock);
   }
 
@@ -832,7 +805,7 @@ export class LiveAgentBackend implements AgentBackend {
       c.step(dt);
       // Idle and away from home: walk back after a short pause.
       if (!c.busy && c.state.location !== profile.home && this.clock - this.releasedAt.get(profile.id)! >= SIM_CONFIG.returnHomeDelay) {
-        c.enqueue({ kind: "move", to: profile.home, activity: "Heading back to desk" });
+        c.enqueue({ kind: "move", to: profile.home, activity: "Về bàn làm việc" });
       }
     }
     this.links = this.links.filter((l) => l.endsAt > this.clock);
@@ -862,7 +835,7 @@ export class LiveAgentBackend implements AgentBackend {
   }
 
   private emitReady(): void {
-    this.emit({ type: "system.ready", message: "Live view ready · waiting for Claude Code hooks" });
+    this.emit({ type: "system.ready", message: "Văn phòng sẵn sàng · chờ tín hiệu từ Claude Code" });
     this.publish();
   }
 

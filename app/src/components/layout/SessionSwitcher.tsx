@@ -77,7 +77,7 @@ export function SessionSwitcher({ variant }: { variant: "bar" | "compact" }) {
         >
           {focused ? <SessionDot status={focused.status} /> : null}
           <span className="min-w-0 truncate text-[12px] text-mist-300">
-            <span className="text-mist-500">{pinned ? "Pinned: " : "Following: "}</span>
+            <span className="text-mist-500">{pinned ? "Đã ghim: " : "Đang theo dõi: "}</span>
             <span className="font-medium text-mist-100">{focused?.title ?? "No session"}</span>
             {focused?.project ? <span className="text-mist-500"> · {focused.project}</span> : null}
           </span>
