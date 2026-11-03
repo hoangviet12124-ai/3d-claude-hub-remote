@@ -1,5 +1,5 @@
 import type { AgentId, AgentProfile, AgentState, AgentStatus } from "./agentTypes.ts";
-import { route, slotFor } from "../simulation/worldLayout.ts";
+import { route, slotFor, viaFor } from "../simulation/worldLayout.ts";
 import type { LocationId, Vec2 } from "../simulation/worldLayout.ts";
 
 /**
@@ -32,6 +32,8 @@ export class AgentController {
   private queue: Action[] = [];
   private current: Action | null = null;
   private elapsed = 0;
+  /** Slot of the last move, so leaving a slot with waypoints walks them back out. */
+  private slot = 0;
   private hooks: ControllerHooks;
 
   constructor(profile: AgentProfile, hooks: ControllerHooks) {
@@ -55,6 +57,7 @@ export class AgentController {
       path: [],
       facingAgentId: null,
       paused: false,
+      carrying: null,
     };
   }
 
@@ -62,6 +65,7 @@ export class AgentController {
     this.queue = [];
     this.current = null;
     this.elapsed = 0;
+    this.slot = 0;
     this.state = AgentController.homeState(this.profile);
   }
 
@@ -138,7 +142,9 @@ export class AgentController {
     switch (a.kind) {
       case "move": {
         const target = slotFor(a.to, a.slot ?? 0).position;
-        this.state.path = route(this.state.position, target);
+        const exit = [...viaFor(this.state.location, this.slot)].reverse();
+        this.state.path = route(this.state.position, target, exit, viaFor(a.to, a.slot ?? 0));
+        this.slot = a.slot ?? 0;
         this.state.destination = a.to;
         this.state.location = null;
         this.state.facingAgentId = null;

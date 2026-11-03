@@ -3,8 +3,8 @@ import { isTerminal } from "../simulation/WorkflowStateMachine.ts";
 import type { CreateTaskInput, Task } from "./taskTypes.ts";
 
 export const DEMO_TASK: CreateTaskInput = {
-  title: "Build a user authentication API with JWT support",
-  description: "Register and login endpoints, short-lived access tokens with refresh rotation, and middleware that protects private routes.",
+  title: "Kiểm tra hồ sơ gói thầu mua sắm thiết bị soi chiếu (ví dụ)",
+  description: "Đối chiếu hồ sơ mời thầu, báo cáo đánh giá và kết quả lựa chọn nhà thầu với quy định còn hiệu lực tại ngày thủ tục.",
   priority: "high",
   isDemo: true,
   script: { qaFailsOn: [1], reviewChangesOn: [] },
