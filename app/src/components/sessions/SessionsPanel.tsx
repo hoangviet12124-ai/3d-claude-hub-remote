@@ -460,7 +460,12 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
         Việc cần giao
         <textarea
           ref={prompt}
-          className="field min-h-[72px] resize-y leading-snug"
+          className="field scroll-thin max-h-[50vh] min-h-[96px] resize-y leading-snug"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "";
+            el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * 0.5))}px`;
+          }}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onPaste={att.onPaste}
@@ -475,6 +480,7 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
           name="prompt"
         />
       </label>
+      <p className="text-[11px] text-mist-500 max-lg:hidden"><kbd className="font-mono">Enter</kbd> để gửi · <kbd className="font-mono">Shift + Enter</kbd> để xuống dòng</p>
       <AttachmentStrip a={att} disabled={busy} />
       {error ? (
         <p role="alert" className="rounded-lg border border-bad/30 bg-bad/10 px-2 py-1.5 text-[12px] text-bad">
@@ -729,11 +735,13 @@ function Composer({ sessionId, session }: { sessionId: string; session: SessionI
   const mode = useLayoutMode();
   const compact = mode !== "desktop";
   const field = useRef<HTMLTextAreaElement>(null);
+  // Grows with the text (a long assignment stays readable), up to 144 px on phones and 45% of the window elsewhere.
   useLayoutEffect(() => {
     const el = field.current;
     if (!el) return;
     el.style.height = "";
-    if (compact) el.style.height = `${Math.min(el.scrollHeight + 2, 144)}px`;
+    const max = compact ? 144 : Math.round(window.innerHeight * 0.45);
+    el.style.height = `${Math.min(el.scrollHeight + 2, max)}px`;
   }, [text, compact]);
   const canStop = session?.owner === "web" && (session.status === "running" || session.status === "waiting");
   const allowedModes = useSessionStore((s) => s.capabilities.permissionModes) ?? DEFAULT_MODES;
@@ -787,13 +795,14 @@ function Composer({ sessionId, session }: { sessionId: string; session: SessionI
           {error}
         </p>
       ) : null}
+      <p className="text-[11px] text-mist-500 max-lg:hidden"><kbd className="font-mono">Enter</kbd> để gửi · <kbd className="font-mono">Shift + Enter</kbd> để xuống dòng</p>
       <AttachmentStrip a={att} disabled={busy} />
       <div className="flex items-end gap-2">
         <AttachButton onFiles={(f) => void att.add(f)} disabled={busy} className="h-10 w-10 flex-none p-0 max-lg:h-11 max-lg:w-11" />
         <textarea
           ref={field}
-          className="field scroll-thin max-h-36 min-h-[40px] flex-1 resize-none py-2 leading-snug max-lg:min-h-11"
-          rows={compact ? 1 : 2}
+          className="field scroll-thin max-h-36 min-h-[40px] flex-1 resize-none py-2 leading-snug max-lg:min-h-11 lg:max-h-[45vh] lg:min-h-[64px]"
+          rows={compact ? 1 : 3}
           onFocus={() => {
             if (mode === "sheet") window.dispatchEvent(new Event("aaw:sheet-full"));
           }}

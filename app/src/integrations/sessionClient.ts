@@ -7,6 +7,25 @@ import type { WebSocketAgentBackend } from "./WebSocketAgentBackend.ts";
 
 let socket: WebSocketAgentBackend | null = null;
 
+const LAST_SESSION_KEY = "aaw:last-session";
+
+/** The session last opened in this browser, so the meeting board comes back to it. */
+export function lastSession(): string | null {
+  try {
+    return localStorage.getItem(LAST_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberLastSession(sessionId: string): void {
+  try {
+    localStorage.setItem(LAST_SESSION_KEY, sessionId);
+  } catch {
+    // storage blocked: the board opens on the list instead
+  }
+}
+
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -35,6 +54,7 @@ export function wireSessions(b: WebSocketAgentBackend): () => void {
         // /clear (or /reset, /new) restarted a web session under a new id: follow it if it is on screen.
         if (st.openId === m.from) {
           st.setOpen(m.to);
+          rememberLastSession(m.to);
           void loadSession(m.to, true);
         }
         break;
@@ -144,6 +164,7 @@ export const sessionCommands = {
     if (prev === sessionId) return;
     if (prev) void backend().request({ name: "closeSession", sessionId: prev }).catch(() => {});
     useSessionStore.getState().setOpen(sessionId);
+    rememberLastSession(sessionId);
     await loadSession(sessionId, options.retry ?? false);
   },
 

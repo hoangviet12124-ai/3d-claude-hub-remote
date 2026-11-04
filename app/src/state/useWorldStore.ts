@@ -88,6 +88,8 @@ export interface WorldState {
   dialog: { open: boolean; preferredAgentId: AgentId | null };
   /** The meeting board (Bảng họp): a large window with the agents' reports and the chat with the Manager. */
   board: boolean;
+  /** The board docked at the side (chat only), so the office stays visible and draggable beside it. */
+  boardDock: boolean;
   quality: Quality;
   qualitySource: QualitySource;
   /** `prefers-reduced-motion: reduce`, kept live by AppShell. The 3D layer damps decorative motion with it. */
@@ -119,6 +121,7 @@ export interface WorldState {
   openDialog: (preferredAgentId?: AgentId | null) => void;
   closeDialog: () => void;
   setBoard: (open: boolean) => void;
+  setBoardDock: (dock: boolean) => void;
   setQuality: (quality: Quality, source: QualitySource) => void;
   setReducedMotion: (reduced: boolean) => void;
   setOverlays: (patch: Partial<WorldState["overlays"]>) => void;
@@ -236,6 +239,7 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   followAgentId: null,
   dialog: { open: false, preferredAgentId: null },
   board: false,
+  boardDock: false,
   quality: "high",
   qualitySource: "auto",
   reducedMotion: false,
@@ -329,6 +333,7 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   closeDialog: () => set({ dialog: { open: false, preferredAgentId: null } }),
   // The board shows the Sessions view itself; the side panel leaves that tab so one session view is mounted at a time.
   setBoard: (open) => set((st) => ({ board: open, tab: open && st.tab === "sessions" ? "overview" : st.tab })),
+  setBoardDock: (boardDock) => set({ boardDock }),
 
   setQuality: (quality, qualitySource) => set({ quality, qualitySource }),
 

@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Plus, Presentation, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Maximize2, PanelRightClose, Plus, Presentation, X } from "lucide-react";
 import { getAgent } from "@/agents/AgentRegistry";
 import { subagentRole } from "@/agents/subagentRole";
 import type { AgentId } from "@/agents/agentTypes";
 import { Markdown } from "@/components/sessions/Markdown";
 import { PermissionStack } from "@/components/sessions/PermissionStack";
-import { sessionCommands } from "@/integrations/sessionClient";
+import { lastSession, sessionCommands } from "@/integrations/sessionClient";
 import { SessionsPanel } from "@/components/sessions/SessionsPanel";
 import type { SessionItem } from "@/integrations/AgentBackend";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -201,9 +201,14 @@ function Presentations() {
 
 export function MeetingBoard() {
   const open = useWorldStore((s) => s.board);
+  const dock = useWorldStore((s) => s.boardDock);
   const setBoard = useWorldStore((s) => s.setBoard);
+  const setDock = useWorldStore((s) => s.setBoardDock);
   const live = useWorldStore((s) => s.backend.identified && !s.backend.simulated);
   const control = useSessionStore((s) => s.capabilities.control);
+  const openId = useSessionStore((s) => s.openId);
+  const composing = useSessionStore((s) => s.composeNew);
+  const known = useSessionStore((s) => s.sessions.length);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -212,20 +217,43 @@ export function MeetingBoard() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setBoard]);
+  // Coming back to the board: reopen the conversation that was open last, instead of the session list.
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      resumed.current = false;
+      return;
+    }
+    if (resumed.current || openId || composing || known === 0) return;
+    resumed.current = true;
+    const last = lastSession();
+    if (last && useSessionStore.getState().sessions.some((x) => x.sessionId === last)) void sessionCommands.open(last);
+  }, [open, openId, composing, known]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-stretch justify-center bg-ink-950/55 p-2 backdrop-blur-[2px] lg:p-6" role="dialog" aria-modal="true" aria-label="Bảng họp" data-testid="meeting-board">
-      <div className="surface flex min-h-0 w-full max-w-[1600px] flex-col overflow-hidden">
-        <header className="flex flex-none items-center gap-3 border-b border-mist-500/12 px-5 py-3">
-          <Presentation size={18} className="text-signal" aria-hidden />
+    <div
+      className={
+        dock
+          ? "pointer-events-none fixed inset-y-0 right-0 z-40 flex w-[min(500px,100vw)] items-stretch p-2 pt-[max(8px,env(safe-area-inset-top))] lg:p-3"
+          : "fixed inset-0 z-40 flex items-stretch justify-center bg-ink-950/55 p-2 backdrop-blur-[2px] lg:p-6"
+      }
+      role="dialog"
+      aria-modal={dock ? undefined : true}
+      aria-label="Bảng họp"
+      data-testid="meeting-board"
+      data-dock={dock || undefined}
+    >
+      <div className={`surface pointer-events-auto flex min-h-0 w-full flex-col overflow-hidden ${dock ? "!bg-white" : "max-w-[1600px]"}`}>
+        <header className={`flex flex-none items-center gap-2 border-b border-mist-500/12 ${dock ? "px-3 py-2" : "gap-3 px-5 py-3"}`}>
+          <Presentation size={dock ? 16 : 18} className="flex-none text-signal" aria-hidden />
           <div className="flex min-w-0 flex-1 flex-col">
-            <h2 className="text-[15px] font-semibold text-mist-100">Bảng họp</h2>
-            <p className="truncate text-[12px] text-mist-500">Bên trái: các agent trình bày với anh. Bên phải: trao đổi và giao việc cho Manager.</p>
+            <h2 className="text-[15px] font-semibold text-mist-100">{dock ? "Trao đổi với Manager" : "Bảng họp"}</h2>
+            {dock ? null : <p className="truncate text-[12px] text-mist-500">Bên trái: các agent trình bày với anh. Bên phải: trao đổi và giao việc cho Manager.</p>}
           </div>
           {live && control ? (
             <button
               type="button"
-              className="btn btn-primary h-8 px-3 text-[12.5px]"
+              className={`btn btn-primary h-8 text-[12.5px] ${dock ? "px-2" : "px-3"}`}
               onClick={() => {
                 sessionCommands.close();
                 useSessionStore.getState().setComposeNew(true);
@@ -235,18 +263,30 @@ export function MeetingBoard() {
               <Plus size={14} /> Phiên mới
             </button>
           ) : null}
-          <button type="button" onClick={() => setBoard(false)} className="btn btn-quiet h-8 px-2.5 text-[12.5px]" aria-label="Đóng bảng họp (Esc)">
-            <X size={15} /> Đóng
+          <button
+            type="button"
+            onClick={() => setDock(!dock)}
+            className="btn btn-quiet h-8 px-2 text-[12.5px]"
+            title={dock ? "Mở rộng thành Bảng họp, xem các agent trình bày" : "Thu khung trao đổi sang bên phải để nhìn văn phòng"}
+          >
+            {dock ? <Maximize2 size={14} /> : <PanelRightClose size={14} />} {dock ? "Mở rộng" : "Thu nhỏ"}
+          </button>
+          <button type="button" onClick={() => setBoard(false)} className="btn btn-quiet h-8 px-2 text-[12.5px]" aria-label="Đóng bảng họp (Esc)" title="Đóng (Esc). Lần mở sau sẽ quay lại đúng phiên này.">
+            <X size={15} />
+            {dock ? null : " Đóng"}
           </button>
         </header>
         {live ? (
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,3fr)_minmax(380px,2fr)] lg:grid-rows-1">
-            <div className="flex min-h-0 flex-col border-b border-mist-500/12 lg:border-b-0 lg:border-r">
-              <h3 className="flex-none px-5 pt-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Các agent trình bày</h3>
-              <Presentations />
-            </div>
-            <div className="flex min-h-0 flex-col">
-              <h3 className="flex-none px-4 pt-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Trao đổi với Manager</h3>
+          <div className={dock ? "flex min-h-0 flex-1 flex-col" : "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,3fr)_minmax(380px,2fr)] lg:grid-rows-1"}>
+            {/* Docked, the reports are hidden; the chat keeps its place in the tree so the conversation is not reloaded. */}
+            {dock ? null : (
+              <div className="flex min-h-0 flex-col border-b border-mist-500/12 lg:border-b-0 lg:border-r">
+                <h3 className="flex-none px-5 pt-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Các agent trình bày</h3>
+                <Presentations />
+              </div>
+            )}
+            <div className="flex min-h-0 flex-1 flex-col">
+              {dock ? null : <h3 className="flex-none px-4 pt-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Trao đổi với Manager</h3>}
               {/* Permission asks also float over the office, which this window covers: show them here too. */}
               <div className="flex flex-none justify-center px-3 pt-2 empty:hidden">
                 <PermissionStack />
