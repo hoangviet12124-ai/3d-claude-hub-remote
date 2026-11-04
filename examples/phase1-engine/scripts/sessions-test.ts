@@ -153,6 +153,13 @@ console.log("\nServer: access rules");
 const live = new LiveAgentBackend({ autoTick: false });
 await live.connect();
 const hub = new SessionHub({ runner: fakeRunner, root, pollMs: 50 });
+{
+  const withDir = new SessionHub({ runner: fakeRunner, root, pollMs: 50, workdir: root });
+  const badDir = new SessionHub({ runner: fakeRunner, root, pollMs: 50, workdir: join(root, "does-not-exist") });
+  check("workdir: an existing folder is kept for new sessions, a missing one is ignored", withDir.workdir === root && badDir.workdir === undefined);
+  withDir.dispose();
+  badDir.dispose();
+}
 let threw = "";
 try {
   await startWorldServer({ backend: live, port: 0, sessions: new SessionHub({ root }) });
@@ -292,6 +299,17 @@ console.log("\nServer: prompts and permission asks");
   await fetch(`${httpUrl}/hook`, { method: "POST", body: JSON.stringify({ hook_event_name: "SessionEnd", session_id: sessionId, reason: "prompt_input_exit" }) });
   const resumed = await client.request<{ sessionId: string; forked: boolean }>({ name: "sendPrompt", text: "Pick it back up", sessionId });
   check("once the terminal session has ended, it is continued in place", !resumed.forked && resumed.sessionId === sessionId && runs.at(-1)!.options.fork === false);
+
+  // Closing a web session from the office (Đóng phiên): the process ends, the session stays listed, and a new
+  // prompt resumes the same conversation.
+  const endedRun = runs.at(-1)!;
+  await client.request({ name: "endSession", sessionId });
+  const afterEnd = (await client.request<SessionInfo[]>({ name: "listSessions" })).find((x) => x.sessionId === sessionId);
+  check("endSession closes the Claude Code process and keeps the session listed as ended", endedRun.closed && afterEnd?.status === "ended", JSON.stringify(afterEnd?.status));
+  const endAgain = await client.request({ name: "endSession", sessionId }).then(() => "ok", (e: Error) => e.message);
+  check("…closing it twice is refused with a reason", /Only sessions running from this web UI/.test(endAgain), endAgain);
+  const reopened = await client.request<{ sessionId: string; forked: boolean }>({ name: "sendPrompt", text: "Mở lại", sessionId });
+  check("…and a new prompt reopens the same conversation in a new process", !reopened.forked && reopened.sessionId === sessionId && runs.at(-1) !== endedRun && runs.at(-1)!.options.resume === sessionId);
 
   const late = new WebSocketAgentBackend({ url: server.url, token });
   const lateExtras: ExtraMessage[] = [];

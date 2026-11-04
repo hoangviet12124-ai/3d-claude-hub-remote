@@ -89,7 +89,10 @@ if (trustLogin) serverArgs.push("--trust-tailscale", trustLogin, "--tailscale-po
 serverArgs.push(...passThrough);
 
 step("Starting");
-const server = supervise("server", cyan, NPM, serverArgs, ENGINE);
+// The folder new sessions from the web UI start in: written by `npm run setup -- --project <folder>`.
+const workdirFile = join(homedir(), ".aaw", "workdir");
+const workdir = existsSync(workdirFile) ? readFileSync(workdirFile, "utf8").trim() : "";
+const server = supervise("server", cyan, NPM, serverArgs, ENGINE, workdir ? { AAW_WORKDIR: workdir } : {});
 const app = supervise("app", green, NPM, ["run", "-s", "start:live"], APP, { PORT: String(appPort) });
 const children = [server, app];
 

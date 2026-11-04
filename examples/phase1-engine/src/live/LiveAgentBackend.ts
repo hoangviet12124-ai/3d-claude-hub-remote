@@ -9,6 +9,7 @@
 import type { AgentId, AgentState } from "../agents/agentTypes.ts";
 import { AGENTS, getAgent } from "../agents/AgentRegistry.ts";
 import { AgentController } from "../agents/AgentController.ts";
+import { subagentRole } from "../agents/subagentRole.ts";
 import type { Action } from "../agents/AgentController.ts";
 import type { AgentEvent, AgentEventType, EventSeverity } from "../events/eventTypes.ts";
 import type { AgentBackend, CommLink, LiveSessionSummary, SimulationStatus, WorldSnapshot } from "../integrations/AgentBackend.ts";
@@ -120,25 +121,7 @@ export function classifyTool(tool: string, input: Record<string, unknown> = {}, 
   return { kind: "work", label: tool };
 }
 
-/**
- * Which robot a subagent is, from the name of its agent file in .claude/agents (Ma trận phân vai 1.1). Agents with no
- * room of their own (general-purpose, Explore, a new file not listed here) are shown on Trợ lý 2.
- */
-export function subagentRole(agentType: string): AgentId {
-  const t = agentType.toLowerCase();
-  if (/^qa\b|kiem-tra/.test(t)) return "quinn";
-  if (/truong-phong-xdcb|xdcb/.test(t)) return "kai";
-  if (/thu-thu/.test(t)) return "iris";
-  if (/so-hoa/.test(t)) return "piper";
-  if (/thu-ky-rnd|rnd/.test(t)) return "rex";
-  if (/ky-su-cai-tien|cai-tien/.test(t)) return "caitien";
-  if (/nghien-cuu|phuong-phap|chuyen-de/.test(t)) return "chuyende";
-  if (/tai-chinh/.test(t)) return "taichinh";
-  if (/quy-trinh/.test(t)) return "quytrinh";
-  if (/gop-y/.test(t)) return "gopy";
-  if (/tom-tat/.test(t)) return "troly1";
-  return "troly2";
-}
+export { subagentRole };
 
 export interface LiveOptions {
   /** Show prompt text in task titles. Off: tasks are titled "Prompt 3". Default true (the server is loopback-only). */

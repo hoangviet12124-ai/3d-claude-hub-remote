@@ -86,6 +86,8 @@ export interface WorldState {
   hovered: string | null;
   followAgentId: AgentId | null;
   dialog: { open: boolean; preferredAgentId: AgentId | null };
+  /** The meeting board (Bảng họp): a large window with the agents' reports and the chat with the Manager. */
+  board: boolean;
   quality: Quality;
   qualitySource: QualitySource;
   /** `prefers-reduced-motion: reduce`, kept live by AppShell. The 3D layer damps decorative motion with it. */
@@ -116,6 +118,7 @@ export interface WorldState {
   setFollow: (id: AgentId | null) => void;
   openDialog: (preferredAgentId?: AgentId | null) => void;
   closeDialog: () => void;
+  setBoard: (open: boolean) => void;
   setQuality: (quality: Quality, source: QualitySource) => void;
   setReducedMotion: (reduced: boolean) => void;
   setOverlays: (patch: Partial<WorldState["overlays"]>) => void;
@@ -232,6 +235,7 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   hovered: null,
   followAgentId: null,
   dialog: { open: false, preferredAgentId: null },
+  board: false,
   quality: "high",
   qualitySource: "auto",
   reducedMotion: false,
@@ -302,7 +306,7 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
 
   setBackend: (patch) => set((st) => ({ backend: { ...st.backend, ...patch } })),
 
-  setTab: (tab) => set({ tab }),
+  setTab: (tab) => set((st) => ({ tab, board: tab === "sessions" ? false : st.board })),
 
   selectAgent: (id, options) => {
     set((st) => ({ selectedAgentId: id, tab: options?.tab === false ? st.tab : id ? "agents" : st.tab }));
@@ -323,6 +327,8 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   openDialog: (preferredAgentId = null) => set({ dialog: { open: true, preferredAgentId } }),
 
   closeDialog: () => set({ dialog: { open: false, preferredAgentId: null } }),
+  // The board shows the Sessions view itself; the side panel leaves that tab so one session view is mounted at a time.
+  setBoard: (open) => set((st) => ({ board: open, tab: open && st.tab === "sessions" ? "overview" : st.tab })),
 
   setQuality: (quality, qualitySource) => set({ quality, qualitySource }),
 

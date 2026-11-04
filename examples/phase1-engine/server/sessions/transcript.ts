@@ -15,6 +15,8 @@ const MAX_TEXT = 8000;
 const CHUNK = 4 * 1024 * 1024;
 const MAX_TOOL_INPUT = 2000;
 const MAX_TOOL_RESULT = 4000;
+/** A subagent's report (Agent/Task result) is what the meeting board shows, so it keeps much more. */
+const MAX_AGENT_REPORT = 20000;
 
 function cap(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max)}\n… (${s.length - max} more characters)` : s;
@@ -125,7 +127,8 @@ export function parseTranscriptLines(
         const tool = pending.get(String(b["tool_use_id"]));
         if (!tool) continue;
         // A new object: items already handed out stay as they were.
-        const updated = { ...tool, result: { text: cap(blockText(b["content"]), MAX_TOOL_RESULT), isError: b["is_error"] === true } };
+        const max = tool.kind === "tool" && /^(Agent|Task)$/.test(tool.name) ? MAX_AGENT_REPORT : MAX_TOOL_RESULT;
+        const updated = { ...tool, result: { text: cap(blockText(b["content"]), max), isError: b["is_error"] === true } };
         pending.set(tool.id, updated);
         out.set(tool.id, updated);
       }

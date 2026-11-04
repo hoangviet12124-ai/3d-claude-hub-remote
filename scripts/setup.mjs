@@ -4,8 +4,9 @@
 // One-time setup on a machine: checks, dependencies for the server and the app, Claude Code hooks, production build.
 // Safe to run again after `git pull`.
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { APP, ENGINE, NPM, bold, green, nodeVersionOk, red, run, step, which, yellow } from "./lib.mjs";
 
 const argv = process.argv.slice(2);
@@ -39,6 +40,10 @@ if (args.has("--no-hooks")) {
   // Node directly, without a shell: the folder may have spaces (OneDrive), which cmd would split.
   const r = spawnSync(process.execPath, [join(ENGINE, "scripts", "bridge-install.mjs"), "install", "--scope", "project", "--project", project], { cwd: ENGINE, stdio: "inherit" });
   if (r.status !== 0) process.exit(r.status ?? 1);
+  // `npm run up` starts new sessions from the web UI in this folder.
+  mkdirSync(join(homedir(), ".aaw"), { recursive: true });
+  writeFileSync(join(homedir(), ".aaw", "workdir"), resolve(project) + "\n");
+  console.log(`  New sessions from the office will start in ${resolve(project)}`);
 } else {
   step("Installing Claude Code hooks (~/.claude/settings.json; other hooks are kept, the file is backed up)");
   run(NPM, ["run", "-s", "bridge", "--", "install"], ENGINE);

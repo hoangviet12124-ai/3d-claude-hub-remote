@@ -2,6 +2,7 @@
 
 import { forwardRef } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { Presentation } from "lucide-react";
 import { useBackendCaps } from "@/components/backendCaps";
 import { CompactSimControls, SimulationControls } from "@/components/controls/SimulationControls";
 import { SessionSwitcher, useLiveSessions } from "@/components/layout/SessionSwitcher";
@@ -82,6 +83,18 @@ export const TopBar = forwardRef<HTMLElement>(function TopBar(_props, ref) {
           <SessionSwitcher variant="bar" />
         </div>
       ) : null}
+
+      {caps.simulated ? null : (
+        <button
+          type="button"
+          onClick={() => useWorldStore.getState().setBoard(true)}
+          className="btn btn-primary h-9 flex-none px-3 text-[13px]"
+          title="Mở Bảng họp: các agent trình bày, trao đổi và giao việc cho Manager (phím H)"
+          data-testid="open-board"
+        >
+          <Presentation size={15} /> <span className="max-[419px]:sr-only">Bảng họp</span>
+        </button>
+      )}
 
       <div className="hidden items-center gap-4 border-l border-mist-500/12 pl-4 xl:flex" aria-label="Metrics">
         <Metric label="Agent" value={metrics.agents} />

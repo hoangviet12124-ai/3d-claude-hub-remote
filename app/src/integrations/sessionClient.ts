@@ -265,6 +265,17 @@ export const sessionCommands = {
     }
   },
 
+  /** Close the Claude Code process of a web session (it stays listed as ended); returns an error message or null. */
+  end: async (sessionId: string): Promise<string | null> => {
+    try {
+      await backend().request({ name: "endSession", sessionId });
+      return null;
+    } catch (err) {
+      const message = errorText(err);
+      return /unknown command/i.test(message) ? "Máy chủ văn phòng là bản cũ, chưa đóng phiên được. Tắt và chạy lại npm run up." : message;
+    }
+  },
+
   interrupt: async (sessionId: string): Promise<string | null> => {
     try {
       await backend().request({ name: "interruptSession", sessionId });

@@ -15,6 +15,8 @@ export interface SessionState {
   sessions: SessionInfo[];
   /** The session shown in the chat view (null: the list). */
   openId: string | null;
+  /** The list shows the "Giao việc mới" form (the meeting board's "Phiên mới" button opens it). */
+  composeNew: boolean;
   /** Items of the open session, in arrival order; upserted by id. */
   items: SessionItem[];
   /** How many older items of the open session have not been loaded yet. */
@@ -29,6 +31,7 @@ export interface SessionState {
   setCapabilities: (c: ServerCapabilities) => void;
   setSessions: (s: SessionInfo[]) => void;
   setOpen: (id: string | null) => void;
+  setComposeNew: (open: boolean) => void;
   /** Upserts items into the open session (ignored for any other session). */
   upsertItems: (sessionId: string, items: SessionItem[]) => void;
   /** Older items for the open session, placed before what is shown. */
@@ -62,6 +65,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   capabilities: { sessions: false, control: false },
   sessions: [],
   openId: null,
+  composeNew: false,
   items: [],
   earlier: 0,
   openError: null,
@@ -73,7 +77,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     if (JSON.stringify(cur) !== JSON.stringify(capabilities)) set({ capabilities });
   },
   setSessions: (sessions) => set({ sessions }),
-  setOpen: (openId) => set({ openId, items: [], earlier: 0, openError: null }),
+  setOpen: (openId) => set({ openId, items: [], earlier: 0, openError: null, ...(openId ? { composeNew: false } : {}) }),
+  setComposeNew: (composeNew) => set({ composeNew }),
   prependItems: (sessionId, items, earlier) => {
     if (sessionId !== get().openId) return;
     set((st) => {

@@ -42,6 +42,8 @@ export interface SessionHubOptions {
   startTimeoutMs?: number;
   /** Drop the parsed items of a session nobody has watched for this long (re-read from disk on reopen). Default 5 min. */
   idleEvictMs?: number;
+  /** Folder new sessions start in when the client names none (Tổ giúp việc: the Brainstorm vault). */
+  workdir?: string;
   /** Forget ended or idle sessions with no activity for this long (they are rediscovered if they change). Default 48 h. */
   forgetAfterMs?: number;
   /**
@@ -152,6 +154,7 @@ const SESSION_COMMANDS: ReadonlySet<string> = new Set([
   "interruptSession",
   "setPermissionMode",
   "removeSession",
+  "endSession",
   "sessionImage",
   "sessionFile",
 ]);
@@ -208,6 +211,7 @@ export class SessionHub {
   private root: string;
   private runner: Runner | undefined;
   readonly permissionModes: SessionPermissionMode[];
+  readonly workdir: string | undefined;
   private defaultMode: SessionPermissionMode;
   private startTimeoutMs: number;
   private discoverWithinMs: number;
@@ -223,6 +227,7 @@ export class SessionHub {
   constructor(options: SessionHubOptions = {}) {
     this.root = options.root ?? projectsRoot();
     this.runner = options.runner;
+    this.workdir = options.workdir && isAbsolute(options.workdir) && existsSync(options.workdir) ? options.workdir : undefined;
     this.permissionModes = options.allowBypass ? [...SAFE_MODES, "bypassPermissions"] : [...SAFE_MODES];
     this.defaultMode = this.checkMode(options.defaultPermissionMode ?? "default");
     this.startTimeoutMs = options.startTimeoutMs ?? 90_000;
@@ -431,6 +436,10 @@ export class SessionHub {
       case "removeSession":
         this.remove(c.sessionId);
         return undefined;
+      case "endSession":
+        this.requireControl();
+        this.end(c.sessionId);
+        return undefined;
     }
   }
 
@@ -450,6 +459,28 @@ export class SessionHub {
       this.refreshBranch(s);
     }
     return [...this.sessions.values()].map((s) => ({ ...s.info })).sort((a, b) => b.lastActivity - a.lastActivity);
+  }
+
+  /**
+   * Close the Claude Code process of a session run from the web UI. The session stays in the list as ended; a new
+   * prompt to it resumes the same conversation in a new process. Pending permission asks of it are denied.
+   */
+  end(sessionId: string): void {
+    const s = this.sessions.get(sessionId);
+    if (!s) throw new Error("Unknown session.");
+    if (!s.run) throw new Error("Only sessions running from this web UI can be closed here.");
+    for (const [id, p] of this.permissions) {
+      if (p.info.sessionId !== sessionId) continue;
+      this.permissions.delete(id);
+      p.resolve(false);
+      this.io?.broadcast({ type: "permissionResolved", requestId: id, allowed: false });
+    }
+    const run = s.run;
+    s.run = undefined;
+    s.info.status = "ended";
+    s.info.lastActivity = Date.now();
+    run.close();
+    this.broadcastSessions();
   }
 
   /** Take a finished session off the list (the transcript is left alone). */
@@ -540,6 +571,7 @@ export class SessionHub {
       return { sessionId: id, forked: fork };
     }
 
+    cwd = cwd?.trim() || this.workdir;
     if (!cwd || !isAbsolute(cwd) || !existsSync(cwd) || !statSync(cwd).isDirectory()) {
       throw new Error("A new session needs `cwd`: an absolute path to an existing directory.");
     }

@@ -179,6 +179,8 @@ export type SessionCommand =
    * if it gets a new prompt. Refused while a turn runs or a permission ask is pending.
    */
   | { name: "removeSession"; sessionId: string }
+  /** Close the Claude Code process of a web session; it stays listed as ended and can be continued. */
+  | { name: "endSession"; sessionId: string }
   /**
    * Play a video from a session's working folder (a path Claude mentioned, absolute or relative to that folder).
    * Only video files inside the folder are allowed. Acks a `SessionFileInfo`; the bytes come over HTTP at its `url`.
@@ -210,6 +212,8 @@ export interface ServerCapabilities {
   permissionModes?: SessionPermissionMode[];
   /** The server has sessions, but this connection did not present the token, so they are hidden from it. */
   locked?: boolean;
+  /** Folder new sessions start in when none is given (server --workdir). */
+  workdir?: string;
 }
 
 export type ClientMessage =

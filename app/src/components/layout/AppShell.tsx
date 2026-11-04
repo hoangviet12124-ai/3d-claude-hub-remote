@@ -14,6 +14,7 @@ import { LoadingScreen } from "@/components/layout/LoadingScreen";
 import { NavRail } from "@/components/layout/NavRail";
 import { TopBar } from "@/components/layout/TopBar";
 import { SidePanel } from "@/components/panels/SidePanel";
+import { MeetingBoard } from "@/components/sessions/MeetingBoard";
 import { PermissionStack } from "@/components/sessions/PermissionStack";
 import { TaskDialog } from "@/components/panels/TaskDialog";
 import { commands, connectBackend } from "@/integrations/backendClient";
@@ -91,6 +92,13 @@ function useKeyboardShortcuts(): void {
         case "b":
         case "B":
           if (online && simulated) void commands.loadSprint();
+          break;
+        case "h":
+        case "H":
+          if (online && !caps.simulated) {
+            e.preventDefault();
+            st.setBoard(!st.board);
+          }
           break;
         case "m":
         case "M":
@@ -239,6 +247,7 @@ export function AppShell() {
         </div>
       </div>
 
+      <MeetingBoard />
       <TaskDialog />
       <LoadingScreen />
     </div>

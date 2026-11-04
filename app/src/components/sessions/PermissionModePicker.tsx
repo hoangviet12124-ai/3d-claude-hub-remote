@@ -5,11 +5,11 @@ import { ShieldAlert, ShieldCheck } from "lucide-react";
 import type { SessionPermissionMode } from "@/integrations/AgentBackend";
 
 export const MODE_INFO: Record<SessionPermissionMode, { label: string; hint: string }> = {
-  default: { label: "Ask me", hint: "Claude asks before tools that need permission." },
-  acceptEdits: { label: "Accept edits", hint: "File edits run without asking; commands and the rest still ask." },
-  auto: { label: "Auto", hint: "Claude Code's classifier approves or denies; it asks you only when unsure." },
-  plan: { label: "Plan only", hint: "Claude explores and writes a plan; nothing is changed or run." },
-  dontAsk: { label: "Don't ask", hint: "Only what your settings already allow runs; everything else is denied." },
+  default: { label: "Hỏi anh trước", hint: "Claude hỏi anh trước khi dùng công cụ cần cấp quyền." },
+  acceptEdits: { label: "Tự sửa file", hint: "Sửa file không cần hỏi; chạy lệnh và việc khác vẫn hỏi." },
+  auto: { label: "Tự động", hint: "Bộ lọc của Claude Code tự duyệt hoặc chặn; chỉ hỏi anh khi không chắc." },
+  plan: { label: "Chỉ lập kế hoạch", hint: "Claude đọc và viết kế hoạch; không sửa, không chạy gì." },
+  dontAsk: { label: "Không hỏi", hint: "Chỉ chạy những gì cài đặt đã cho phép; còn lại bị từ chối." },
   bypassPermissions: { label: "Bypass", hint: "Every tool runs without any check. Use only in a throwaway folder." },
 };
 
@@ -64,7 +64,7 @@ export function PermissionModePicker({
       <div className="flex items-center gap-2">
         <label htmlFor={id} className="flex flex-none items-center gap-1 text-[11.5px] text-mist-500">
           {danger ? <ShieldAlert size={13} className="text-bad" aria-hidden /> : <ShieldCheck size={13} aria-hidden />}
-          Permissions
+          Quyền
         </label>
         <select
           id={id}
