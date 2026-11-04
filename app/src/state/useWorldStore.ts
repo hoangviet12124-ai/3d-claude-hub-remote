@@ -37,6 +37,13 @@ export interface CameraRequest {
   distance?: number;
 }
 
+export interface OfficeSlot {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export interface ViewInsets {
   top: number;
   right: number;
@@ -90,6 +97,11 @@ export interface WorldState {
   board: boolean;
   /** The board docked at the side (chat only), so the office stays visible and draggable beside it. */
   boardDock: boolean;
+  /**
+   * Where the board leaves room for a small view of the office (viewport CSS pixels), or null. While set, the
+   * 3D canvas is drawn in that box, over the board, instead of filling the screen.
+   */
+  officeSlot: OfficeSlot | null;
   quality: Quality;
   qualitySource: QualitySource;
   /** `prefers-reduced-motion: reduce`, kept live by AppShell. The 3D layer damps decorative motion with it. */
@@ -122,6 +134,7 @@ export interface WorldState {
   closeDialog: () => void;
   setBoard: (open: boolean) => void;
   setBoardDock: (dock: boolean) => void;
+  setOfficeSlot: (slot: OfficeSlot | null) => void;
   setQuality: (quality: Quality, source: QualitySource) => void;
   setReducedMotion: (reduced: boolean) => void;
   setOverlays: (patch: Partial<WorldState["overlays"]>) => void;
@@ -240,6 +253,7 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   dialog: { open: false, preferredAgentId: null },
   board: false,
   boardDock: false,
+  officeSlot: null,
   quality: "high",
   qualitySource: "auto",
   reducedMotion: false,
@@ -334,6 +348,12 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   // The board shows the Sessions view itself; the side panel leaves that tab so one session view is mounted at a time.
   setBoard: (open) => set((st) => ({ board: open, tab: open && st.tab === "sessions" ? "overview" : st.tab })),
   setBoardDock: (boardDock) => set({ boardDock }),
+  setOfficeSlot: (slot) =>
+    set((st) => {
+      const a = st.officeSlot;
+      if (a === slot || (a && slot && a.left === slot.left && a.top === slot.top && a.width === slot.width && a.height === slot.height)) return {};
+      return { officeSlot: slot };
+    }),
 
   setQuality: (quality, qualitySource) => set({ quality, qualitySource }),
 

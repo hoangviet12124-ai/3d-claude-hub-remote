@@ -115,16 +115,18 @@ interface OverviewFrame {
  * which every office corner projects inside the free area, allowing a sideways nudge of up to ±3 m so the
  * office sits centred instead of being pushed out by perspective. `camera` must already carry the view offset.
  */
-function overviewFrame(base: number, camera: THREE.PerspectiveCamera, width: number, height: number, free: FreeArea): OverviewFrame {
+function overviewFrame(base: number, camera: THREE.PerspectiveCamera, width: number, height: number, free: FreeArea, compact = false): OverviewFrame {
   const p = CAMERA_PRESETS.overview;
   const target = new THREE.Vector3(...p.target);
   const offset = new THREE.Vector3(...p.position).sub(target);
   const probe = camera.clone();
   const maxScale = OVERVIEW_MAX_SCALE;
-  const L = free.left + FRAME_MARGIN_PX;
-  const R = free.left + free.width - FRAME_MARGIN_PX;
-  const T = free.top + FRAME_MARGIN_PX;
-  const B = free.top + free.height - FRAME_MARGIN_PX - CAMERA_BAR_PX;
+  // Small in the board's corner: no camera bar there, and the usual margin would waste most of the box.
+  const margin = compact ? 6 : FRAME_MARGIN_PX;
+  const L = free.left + margin;
+  const R = free.left + free.width - margin;
+  const T = free.top + margin;
+  const B = free.top + free.height - margin - (compact ? 0 : CAMERA_BAR_PX);
   // 2 % steps, and the last step lands exactly on the distance limit.
   for (let step = Math.min(base, maxScale); ; step += 0.02) {
     const k = Math.min(step, maxScale);
@@ -169,18 +171,18 @@ function overviewFrame(base: number, camera: THREE.PerspectiveCamera, width: num
  * until the overview fits at the distance limit, then search the overview again at that fov. Wide layouts
  * keep fov 40. Mutates `camera.fov` (and its projection) and returns the overview frame for it.
  */
-function fitFovAndOverview(base: number, camera: THREE.PerspectiveCamera, width: number, height: number, free: FreeArea): OverviewFrame {
+function fitFovAndOverview(base: number, camera: THREE.PerspectiveCamera, width: number, height: number, free: FreeArea, compact = false): OverviewFrame {
   camera.fov = CAMERA_FOV;
   camera.updateProjectionMatrix();
-  const frame = overviewFrame(base, camera, width, height, free);
+  const frame = overviewFrame(base, camera, width, height, free, compact);
   if (frame.fits) return frame;
   for (let fov = CAMERA_FOV + 1; fov <= CAMERA_FOV_MAX; fov++) {
     camera.fov = fov;
     camera.updateProjectionMatrix();
     // Only the distance limit matters here: did this fov make the office fit at all?
-    if (overviewFrame(OVERVIEW_MAX_SCALE, camera, width, height, free).fits) return overviewFrame(base, camera, width, height, free);
+    if (overviewFrame(OVERVIEW_MAX_SCALE, camera, width, height, free, compact).fits) return overviewFrame(base, camera, width, height, free, compact);
   }
-  return overviewFrame(base, camera, width, height, free);
+  return overviewFrame(base, camera, width, height, free, compact);
 }
 
 /** Last computed fit, for the `?stats` debug readout. */
@@ -217,16 +219,18 @@ export function CameraController() {
 
     // 1. Free-area fit: shift the projection centre and refit the last preset when the layout changes.
     const insets = store.viewInsets;
-    const key = `${width}x${height}|${insets.top},${insets.right},${insets.bottom},${insets.left}`;
+    const compact = !!store.officeSlot;
+    const key = `${width}x${height}|${insets.top},${insets.right},${insets.bottom},${insets.left}|${compact}`;
     if (key !== s.fitKey) {
       s.fitKey = key;
       const free = freeArea(width, height, insets);
-      s.fit = fitScale(height, free);
+      // In the corner the overview starts close and backs off only until the whole office fits.
+      s.fit = compact ? 0.5 : fitScale(height, free);
       const cx = free.left + free.width / 2;
       const cy = free.top + free.height / 2;
       camera.setViewOffset(width, height, width / 2 - cx, height / 2 - cy, width, height);
       camera.updateProjectionMatrix();
-      s.overview = fitFovAndOverview(s.fit, camera, width, height, free);
+      s.overview = fitFovAndOverview(s.fit, camera, width, height, free, compact);
       cameraFitInfo.fit = s.fit;
       cameraFitInfo.overviewFits = s.overview.fits;
       cameraFitInfo.fov = camera.fov;

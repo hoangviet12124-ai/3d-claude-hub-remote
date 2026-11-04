@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Maximize2, PanelRightClose, Plus, Presentation, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Maximize2, Minimize2, Plus, Presentation, X } from "lucide-react";
 import { getAgent } from "@/agents/AgentRegistry";
 import { subagentRole } from "@/agents/subagentRole";
 import type { AgentId } from "@/agents/agentTypes";
@@ -199,6 +199,50 @@ function Presentations() {
   );
 }
 
+/**
+ * The office, small, in the board's corner: an empty box whose place on screen goes to the store, where AppShell
+ * draws the 3D canvas over it. Below the desktop layout the box is hidden and the office is not drawn small.
+ */
+function OfficeCorner({ onEnlarge }: { onEnlarge: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const set = useWorldStore.getState().setOfficeSlot;
+    if (!el) return;
+    let raf = 0;
+    const measure = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect();
+        set(r.width >= 120 && r.height >= 80 ? { left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) } : null);
+      });
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    measure();
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+      set(null);
+    };
+  }, []);
+  return (
+    <div className="flex flex-none flex-col border-t border-mist-500/12 max-lg:hidden" data-testid="office-corner">
+      <div className="flex items-center gap-2 px-5 pb-1.5 pt-2.5">
+        <h3 className="flex-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Văn phòng đang làm gì</h3>
+        <button type="button" onClick={onEnlarge} className="btn btn-quiet h-7 px-2 text-[12px]" title="Phóng to văn phòng để xem các agent làm việc; khung trao đổi thu sang bên phải" data-testid="office-enlarge">
+          <Maximize2 size={13} /> Phóng to
+        </button>
+      </div>
+      <div className="px-4 pb-4">
+        <div ref={ref} className="h-[clamp(180px,30vh,320px)] w-full rounded-[3px] border border-mist-500/20 bg-ink-950" />
+      </div>
+    </div>
+  );
+}
+
 export function MeetingBoard() {
   const open = useWorldStore((s) => s.board);
   const dock = useWorldStore((s) => s.boardDock);
@@ -247,8 +291,8 @@ export function MeetingBoard() {
         <header className={`flex flex-none items-center gap-2 border-b border-mist-500/12 ${dock ? "px-3 py-2" : "gap-3 px-5 py-3"}`}>
           <Presentation size={dock ? 16 : 18} className="flex-none text-signal" aria-hidden />
           <div className="flex min-w-0 flex-1 flex-col">
-            <h2 className="text-[15px] font-semibold text-mist-100">{dock ? "Trao đổi với Manager" : "Bảng họp"}</h2>
-            {dock ? null : <p className="truncate text-[12px] text-mist-500">Bên trái: các agent trình bày với anh. Bên phải: trao đổi và giao việc cho Manager.</p>}
+            <h2 className="text-[15px] font-semibold text-mist-100">{dock ? "Manager" : "Bảng họp"}</h2>
+            {dock ? null : <p className="truncate text-[12px] text-mist-500">Bên trái: các agent trình bày, văn phòng thu nhỏ ở dưới. Bên phải: trao đổi và giao việc cho Manager.</p>}
           </div>
           {live && control ? (
             <button
@@ -267,9 +311,10 @@ export function MeetingBoard() {
             type="button"
             onClick={() => setDock(!dock)}
             className="btn btn-quiet h-8 px-2 text-[12.5px]"
-            title={dock ? "Mở rộng thành Bảng họp, xem các agent trình bày" : "Thu khung trao đổi sang bên phải để nhìn văn phòng"}
+            title={dock ? "Về bảng làm việc: trao đổi và báo cáo chiếm chính, văn phòng thu vào góc" : "Phóng to văn phòng; khung trao đổi thu sang bên phải"}
+            data-testid="board-dock-toggle"
           >
-            {dock ? <Maximize2 size={14} /> : <PanelRightClose size={14} />} {dock ? "Mở rộng" : "Thu nhỏ"}
+            {dock ? <Minimize2 size={14} /> : <Maximize2 size={14} />} {dock ? "Thu vào góc" : "Phóng to văn phòng"}
           </button>
           <button type="button" onClick={() => setBoard(false)} className="btn btn-quiet h-8 px-2 text-[12.5px]" aria-label="Đóng bảng họp (Esc)" title="Đóng (Esc). Lần mở sau sẽ quay lại đúng phiên này.">
             <X size={15} />
@@ -277,12 +322,13 @@ export function MeetingBoard() {
           </button>
         </header>
         {live ? (
-          <div className={dock ? "flex min-h-0 flex-1 flex-col" : "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,3fr)_minmax(380px,2fr)] lg:grid-rows-1"}>
+          <div className={dock ? "flex min-h-0 flex-1 flex-col" : "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)] lg:grid-rows-1"}>
             {/* Docked, the reports are hidden; the chat keeps its place in the tree so the conversation is not reloaded. */}
             {dock ? null : (
               <div className="flex min-h-0 flex-col border-b border-mist-500/12 lg:border-b-0 lg:border-r">
                 <h3 className="flex-none px-5 pt-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Các agent trình bày</h3>
                 <Presentations />
+                <OfficeCorner onEnlarge={() => setDock(true)} />
               </div>
             )}
             <div className="flex min-h-0 flex-1 flex-col">

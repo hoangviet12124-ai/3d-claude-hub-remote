@@ -135,6 +135,8 @@ function useViewInsets(regions: {
       const top = rect(regions.top);
       const side = rect(regions.side);
       const insets: ViewInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+      // Drawn small in the board's corner, the office has no floating UI over it.
+      if (useWorldStore.getState().officeSlot) return useWorldStore.getState().setViewInsets(insets);
       if (top) insets.top = Math.round(top.bottom);
       if (mode !== "sheet") {
         // Desktop and landscape phones: rail on the left, panel on the right (landscape: the top bar spans
@@ -153,7 +155,11 @@ function useViewInsets(regions: {
     window.addEventListener("resize", measure);
     window.addEventListener("aaw:sheet-settled", measure);
     measure();
+    const offSlot = useWorldStore.subscribe((st, prev) => {
+      if (!st.officeSlot !== !prev.officeSlot) measure();
+    });
     return () => {
+      offSlot();
       ro.disconnect();
       window.removeEventListener("resize", measure);
       window.removeEventListener("aaw:sheet-settled", measure);
@@ -188,6 +194,8 @@ export function AppShell() {
   const autoStart = useWorldStore((s) => s.autoStart);
   const connection = useWorldStore((s) => s.backend.connection);
   const identified = useWorldStore((s) => s.backend.identified);
+  const simulated = useWorldStore((s) => s.backend.simulated);
+  const officeSlot = useWorldStore((s) => s.officeSlot);
 
   // Sound first, so its listeners exist before the backend's first events (§8).
   useSoundEffects();
@@ -202,6 +210,14 @@ export function AppShell() {
     if (sceneReady && autoStart && identified && connection === "open") void commands.autoStartIfReady();
   }, [sceneReady, autoStart, identified, connection]);
 
+  // Live: work starts on the board (chat and reports first, the office small in a corner), once per page load.
+  const boardOpened = useRef(false);
+  useEffect(() => {
+    if (boardOpened.current || !identified || simulated || connection !== "open") return;
+    boardOpened.current = true;
+    if (!readDevFlags(window.location.search).tab) useWorldStore.getState().setBoard(true);
+  }, [identified, simulated, connection]);
+
   useDevFlags(sceneReady && identified && connection === "open");
   useReducedMotionPreference();
   useKeyboardShortcuts();
@@ -209,7 +225,12 @@ export function AppShell() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-ink-950 text-mist-100">
-      <div className="blueprint-paper absolute inset-0 z-0">
+      <div
+        className={officeSlot ? "blueprint-paper fixed z-[45] overflow-hidden rounded-[3px]" : "blueprint-paper absolute inset-0 z-0"}
+        style={officeSlot ? { left: officeSlot.left, top: officeSlot.top, width: officeSlot.width, height: officeSlot.height } : undefined}
+        data-testid="world-layer"
+        data-mini={officeSlot ? true : undefined}
+      >
         <WorldCanvas />
       </div>
       <AgentLabelsOverlay />
