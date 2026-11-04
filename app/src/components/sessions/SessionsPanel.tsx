@@ -66,12 +66,12 @@ function UnlockSessions() {
       <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-mist-300" data-testid="sessions-locked">
         <KeyRound size={15} className="mt-0.5 shrink-0 text-warn" />
         <span>
-          This server can show and continue your Claude Code sessions, but it needs its token first. Open the link the server
-          printed, or paste the token from <code className="font-mono text-[11.5px] text-mist-100">cat ~/.aaw/token</code>.
+          Cần mã vào văn phòng để xem và giao việc cho các phiên. Mở đúng link có đuôi <code className="font-mono text-[11.5px] text-mist-100">#token=…</code>, hoặc
+          lấy mã bằng lệnh <code className="font-mono text-[11.5px] text-mist-100">type %USERPROFILE%\.aaw\token</code> trong cmd rồi dán vào ô dưới.
         </span>
       </p>
       <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500" htmlFor="sessions-token">
-        Server token
+        Mã vào văn phòng
         <input
           id="sessions-token"
           type="password"
@@ -80,7 +80,7 @@ function UnlockSessions() {
           value={token}
           onChange={(e) => setToken(e.target.value)}
           className="rounded-lg border border-mist-500/20 bg-ink-900/70 px-3 py-2 font-mono text-[12.5px] normal-case tracking-normal text-mist-100 outline-none focus-visible:border-signal/60"
-          placeholder="Paste the token"
+          placeholder="Dán mã vào đây"
         />
       </label>
       <button
@@ -88,9 +88,9 @@ function UnlockSessions() {
         disabled={!token.trim()}
         className="self-start rounded-lg bg-signal px-3.5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-signal-strong disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Unlock sessions
+        Mở khóa
       </button>
-      <p className="text-[11.5px] text-mist-500">The token is kept for this browser tab only.</p>
+      <p className="text-[11.5px] text-mist-500">Mã chỉ được nhớ trong thẻ trình duyệt này. Nên lưu link có mã vào dấu trang (Ctrl + D) để lần sau bấm thẳng.</p>
     </form>
   );
 }
