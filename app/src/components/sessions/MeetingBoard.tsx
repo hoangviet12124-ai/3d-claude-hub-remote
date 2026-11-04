@@ -9,6 +9,7 @@ import { Markdown } from "@/components/sessions/Markdown";
 import { PermissionStack } from "@/components/sessions/PermissionStack";
 import { lastSession, sessionCommands } from "@/integrations/sessionClient";
 import { SessionsPanel } from "@/components/sessions/SessionsPanel";
+import { SessionTabs } from "@/components/sessions/SessionTabs";
 import type { SessionItem } from "@/integrations/AgentBackend";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useWorldStore } from "@/state/useWorldStore";
@@ -333,6 +334,7 @@ export function MeetingBoard() {
             )}
             <div className="flex min-h-0 flex-1 flex-col">
               {dock ? null : <h3 className="flex-none px-4 pt-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Trao đổi với Manager</h3>}
+              <SessionTabs canStart={control} />
               {/* Permission asks also float over the office, which this window covers: show them here too. */}
               <div className="flex flex-none justify-center px-3 pt-2 empty:hidden">
                 <PermissionStack />
