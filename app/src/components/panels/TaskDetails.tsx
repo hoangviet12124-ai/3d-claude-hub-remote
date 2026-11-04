@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { AlertTriangle, ArrowLeft, Check, CircleSlash, MessagesSquare, PauseCircle, RefreshCw } from "lucide-react";
 import { getAgent } from "@/agents/AgentRegistry";
-import { Avatar, DemoTag, Empty, PHASE_LABEL, PriorityTag, ProgressBar, Section, TaskStatusBadge, formatClock } from "@/components/ui";
+import { Avatar, DemoTag, Empty, PHASE_LABEL, PriorityTag, ProgressBar, Section, TaskStatusBadge, formatWallClock } from "@/components/ui";
 import { taskBarColor } from "@/components/panels/TaskCard";
 import { eventsForTask } from "@/events/eventStore";
 import { sessionCommands } from "@/integrations/sessionClient";
@@ -52,6 +52,17 @@ function OpenSessionButton({ taskId }: { taskId: string }) {
       <MessagesSquare size={14} /> Open session
     </button>
   );
+}
+
+/**
+ * Wall-clock time of a moment on the world clock (seconds), read off the nearest event, which carries both. In live
+ * mode the world clock runs at real speed, so this is the real time to within a second or so.
+ */
+function wallAt(simSeconds: number): number {
+  const events = useWorldStore.getState().events;
+  let best: { simTime: number; timestamp: number } | null = null;
+  for (const e of events) if (!best || Math.abs(e.simTime - simSeconds) < Math.abs(best.simTime - simSeconds)) best = e;
+  return best ? best.timestamp + (simSeconds - best.simTime) * 1000 : Date.now();
 }
 
 export function TaskDetails({ task, onBack }: { task: Task; onBack: () => void }) {
@@ -162,18 +173,18 @@ export function TaskDetails({ task, onBack }: { task: Task; onBack: () => void }
 
       <Section title="Timeline">
         {task.history.length === 0 ? (
-          <Empty>Created at {formatClock(task.createdAt)}; no transitions yet.</Empty>
+          <Empty>Created at {formatWallClock(wallAt(task.createdAt))}; no transitions yet.</Empty>
         ) : (
           <ol className="flex flex-col gap-1">
             <li className="flex items-center gap-2 text-[12px] text-mist-500">
-              <span className="w-9 font-mono text-[10.5px] tabular-nums">{formatClock(task.createdAt)}</span>
+              <span className="w-9 font-mono text-[10.5px] tabular-nums">{formatWallClock(wallAt(task.createdAt))}</span>
               <span>Created</span>
             </li>
             {task.history.map((h, i) => {
               const bad = h.signal === "tests_failed" || h.signal === "changes_requested" || h.to === "failed";
               return (
                 <li key={i} className="flex items-center gap-2 text-[12px]">
-                  <span className="w-9 font-mono text-[10.5px] tabular-nums text-mist-500">{formatClock(h.at)}</span>
+                  <span className="w-9 font-mono text-[10.5px] tabular-nums text-mist-500">{formatWallClock(wallAt(h.at))}</span>
                   <span className="text-mist-300">
                     {PHASE_LABEL[h.from]} → <span className="text-mist-100">{PHASE_LABEL[h.to]}</span>
                   </span>

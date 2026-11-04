@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { AGENTS } from "@/agents/AgentRegistry";
 import type { AgentId } from "@/agents/agentTypes";
-import { Avatar, formatClock } from "@/components/ui";
+import { Avatar, formatWallClock, formatWallFull } from "@/components/ui";
 import { feedEvents } from "@/events/eventStore";
 import { useWorldStore } from "@/state/useWorldStore";
 
@@ -49,7 +49,7 @@ export function ConversationBox() {
                         {nameOf(e.agentId)}
                       </b>
                     ) : null}
-                    {e.targetAgentId ? <> → {nameOf(e.targetAgentId)}</> : null} · {formatClock(e.simTime)}
+                    {e.targetAgentId ? <> → {nameOf(e.targetAgentId)}</> : null} · <span title={formatWallFull(e.timestamp)}>{formatWallClock(e.timestamp)}</span>
                   </p>
                   <p className="line-clamp-2 text-[12.5px] leading-snug text-mist-100">{e.message}</p>
                 </div>

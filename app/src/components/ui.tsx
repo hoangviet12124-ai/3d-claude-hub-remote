@@ -79,6 +79,19 @@ export const SEVERITY_COLOR: Record<EventSeverity, string> = {
   error: "bg-bad",
 };
 
+/** Wall-clock time of an event (ms since epoch) as 24-hour HH:MM, the way Việt reads a clock. */
+export function formatWallClock(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Full date and time for a tooltip, e.g. 04/11/2026 11:52:07. */
+export function formatWallFull(ms: number): string {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 /** Simulation seconds as m:ss. */
 export function formatClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
