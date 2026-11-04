@@ -1,4 +1,5 @@
 import { useSessionStore } from "../state/useSessionStore.ts";
+import { useTabStore } from "../state/useTabStore.ts";
 import type { PromptImage, SessionFileInfo, SessionInfo, SessionItem, SessionPermissionMode } from "./AgentBackend.ts";
 import type { WebSocketAgentBackend } from "./WebSocketAgentBackend.ts";
 
@@ -52,6 +53,7 @@ export function wireSessions(b: WebSocketAgentBackend): () => void {
         break;
       case "sessionMoved":
         // /clear (or /reset, /new) restarted a web session under a new id: follow it if it is on screen.
+        useTabStore.getState().rename(m.from, m.to);
         if (st.openId === m.from) {
           st.setOpen(m.to);
           rememberLastSession(m.to);
@@ -165,6 +167,7 @@ export const sessionCommands = {
     if (prev) void backend().request({ name: "closeSession", sessionId: prev }).catch(() => {});
     useSessionStore.getState().setOpen(sessionId);
     rememberLastSession(sessionId);
+    useTabStore.getState().pin(sessionId);
     await loadSession(sessionId, options.retry ?? false);
   },
 
