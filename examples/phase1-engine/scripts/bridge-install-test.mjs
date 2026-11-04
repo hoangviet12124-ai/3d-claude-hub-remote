@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { EVENTS, FORWARDER, installedEvents, withBridge, withoutBridge } from "./bridge-install.mjs";
+import { EVENTS, FORWARDER, PORTABLE_COMMAND, installedEvents, withBridge, withoutBridge } from "./bridge-install.mjs";
 const ours = (h) => /forward-hook\.mjs"$/.test(h.command);
 
 const cli = join(dirname(fileURLToPath(import.meta.url)), "bridge-install.mjs");
@@ -72,6 +72,11 @@ const oldSh = { hooks: { Stop: [{ hooks: [{ type: "command", command: "'/x/bridg
 check("an older forward-hook.sh install is recognised and replaced by the Node one", withBridge(oldSh).hooks.Stop.length === 1 && withBridge(oldSh).hooks.Stop[0].hooks[0].command.endsWith('forward-hook.mjs"'));
 const winInstall = { hooks: { Stop: [{ hooks: [{ type: "command", command: "C:\\aaw\\bridge\\forward-hook.sh" }] }] } };
 check("a backslash install from before is recognised and replaced", installedEvents(winInstall).length === 1 && withBridge(winInstall).hooks.Stop.length === 1 && !withoutBridge(winInstall).hooks);
+const portable = withBridge({}, "portable");
+check("the portable hook names no file and is recognised as ours", portable.hooks.Stop[0].hooks[0].command === PORTABLE_COMMAND && installedEvents(portable).length === EVENTS.length && !withoutBridge(portable).hooks);
+const inner = PORTABLE_COMMAND.slice('node -e "'.length, -1);
+check("the portable hook is safe in cmd, PowerShell and Git Bash (no $ ` % ! \\ or inner double quote)", PORTABLE_COMMAND.startsWith('node -e "') && !/["$`%!\\]/.test(inner));
+check("switching from a path install to the portable one leaves one handler per event", withBridge(withBridge({}), "portable").hooks.Stop.length === 1);
 writeFileSync(file, "{ not json");
 r = run(["install"], home);
 check("an unreadable settings file is reported and left alone", r.status === 1 && readFileSync(file, "utf8") === "{ not json");
