@@ -13,9 +13,10 @@ export const MODE_INFO: Record<SessionPermissionMode, { label: string; hint: str
   bypassPermissions: { label: "Bypass", hint: "Every tool runs without any check. Use only in a throwaway folder." },
 };
 
-const LAST_MODE_KEY = "aaw.permissionMode";
+// v2: from 04/11 the default is "Tự sửa file" (Việt chose it); a pick made before that is not carried over.
+const LAST_MODE_KEY = "aaw.permissionMode.v2";
 
-/** The mode last picked in this browser (never bypass: that is always a deliberate choice). */
+/** The mode last picked in this browser, else "Tự sửa file" (never bypass: that is always a deliberate choice). */
 export function rememberedMode(allowed: readonly SessionPermissionMode[]): SessionPermissionMode {
   try {
     const m = localStorage.getItem(LAST_MODE_KEY) as SessionPermissionMode | null;
@@ -23,7 +24,7 @@ export function rememberedMode(allowed: readonly SessionPermissionMode[]): Sessi
   } catch {
     // storage blocked
   }
-  return "default";
+  return allowed.includes("acceptEdits") ? "acceptEdits" : "default";
 }
 
 function remember(mode: SessionPermissionMode): void {
