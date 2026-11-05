@@ -92,6 +92,13 @@ export type BackendCommand =
  */
 export type SessionPermissionMode = "default" | "acceptEdits" | "auto" | "plan" | "dontAsk" | "bypassPermissions";
 
+/** Models a web session can be started with: Claude Code's own aliases, so the newest of each family is used. */
+export const SESSION_MODELS = ["sonnet", "opus", "haiku"] as const;
+export type SessionModel = (typeof SESSION_MODELS)[number];
+/** How hard Claude thinks (Claude Code's effort levels). */
+export const SESSION_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type SessionEffort = (typeof SESSION_EFFORTS)[number];
+
 /** A Claude Code session the server has seen through hooks or started itself. */
 export interface SessionInfo {
   sessionId: string;
@@ -109,6 +116,9 @@ export interface SessionInfo {
   readable: boolean;
   /** Permission mode of a session run from the web UI (unknown for terminal sessions). */
   permissionMode?: SessionPermissionMode;
+  /** Model and effort chosen in the web UI for this session's process (absent: Claude Code's own default). */
+  model?: SessionModel;
+  effort?: SessionEffort;
 }
 
 /** Image types a prompt may carry (what the Claude API accepts). */
@@ -175,7 +185,11 @@ export type SessionCommand =
    * without, start a new session in `cwd`. `images` are attached before the text (a prompt may be images
    * only). The ack carries `{ sessionId, forked }`.
    */
-  | { name: "sendPrompt"; text: string; images?: PromptImage[]; sessionId?: string; cwd?: string; permissionMode?: SessionPermissionMode }
+  /**
+   * `model` switches a running session at once; `effort` takes effect when the session's process starts (a new
+   * session, or continuing one that is not running).
+   */
+  | { name: "sendPrompt"; text: string; images?: PromptImage[]; sessionId?: string; cwd?: string; permissionMode?: SessionPermissionMode; model?: SessionModel; effort?: SessionEffort }
   /** The bytes of an image in a session you opened. Acks `{ mediaType, data }` (base64). */
   | { name: "sessionImage"; sessionId: string; imageId: string }
   /** Change the permission mode of a session running from the web UI, effective for its next tool call. */

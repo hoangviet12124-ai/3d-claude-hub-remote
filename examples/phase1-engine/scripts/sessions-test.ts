@@ -131,10 +131,10 @@ writeFileSync(transcript, readFileSync(fixture, "utf8").replaceAll('"cwd": "/pri
 }
 
 // ── a scripted stand-in for Claude Code ──
-interface FakeRun { options: RunOptions; prompts: string[]; images: PromptImage[][]; interrupted: boolean; closed: boolean; modes: string[] }
+interface FakeRun { options: RunOptions; prompts: string[]; images: PromptImage[][]; interrupted: boolean; closed: boolean; modes: string[]; models: string[] }
 const runs: FakeRun[] = [];
 const fakeRunner: Runner = (options) => {
-  const run: FakeRun = { options, prompts: [options.firstPrompt], images: [options.firstImages ?? []], interrupted: false, closed: false, modes: [options.permissionMode] };
+  const run: FakeRun = { options, prompts: [options.firstPrompt], images: [options.firstImages ?? []], interrupted: false, closed: false, modes: [options.permissionMode], models: [] };
   runs.push(run);
   const id = options.resume && !options.fork ? options.resume : `web-${runs.length}`;
   setTimeout(() => options.onSession(id), 20);
@@ -145,6 +145,7 @@ const fakeRunner: Runner = (options) => {
     },
     interrupt: async () => { run.interrupted = true; },
     setPermissionMode: async (m) => { run.modes.push(m); },
+    setModel: async (m) => { run.models.push(m); },
     close: () => { run.closed = true; },
   };
 };
@@ -487,6 +488,17 @@ console.log("\nPermission modes");
   check("bypass is refused unless the server allows it", noBypass.includes("--allow-bypass"), noBypass);
   const defaultStart = await c.request<{ sessionId: string }>({ name: "sendPrompt", text: "plain", cwd: project });
   check("without a choice a session asks (default mode)", runs.at(-1)!.options.permissionMode === "default" && !!defaultStart.sessionId);
+  check("…and no model or effort is forced (Claude Code's settings decide)", runs.at(-1)!.options.model === undefined && runs.at(-1)!.options.effort === undefined);
+  const picked = await c.request<{ sessionId: string }>({ name: "sendPrompt", text: "with model", cwd: project, model: "opus", effort: "high" });
+  const pickedRun = runs.at(-1)!;
+  check("a new session starts with the chosen model and effort", pickedRun.options.model === "opus" && pickedRun.options.effort === "high");
+  const pickedInfo = (await c.request<SessionInfo[]>({ name: "listSessions" })).find((x) => x.sessionId === picked.sessionId);
+  check("…and the list shows them", pickedInfo?.model === "opus" && pickedInfo.effort === "high", JSON.stringify(pickedInfo));
+  await c.request({ name: "sendPrompt", text: "faster", sessionId: picked.sessionId, model: "sonnet" });
+  check("a running session switches model without a restart", pickedRun.models.at(-1) === "sonnet" && runs.at(-1) === pickedRun && pickedRun.prompts.at(-1) === "faster");
+  const badModel = await c.request({ name: "sendPrompt", text: "x", cwd: project, model: "gpt" as never }).then(() => "ok", (e: Error) => e.message);
+  const badEffort = await c.request({ name: "sendPrompt", text: "x", cwd: project, effort: "huge" as never }).then(() => "ok", (e: Error) => e.message);
+  check("an unknown model or effort is refused", /Unknown model/.test(badModel) && /Unknown effort/.test(badEffort), `${badModel} | ${badEffort}`);
   await c.disconnect();
   await ms.close();
   modeHub.dispose();

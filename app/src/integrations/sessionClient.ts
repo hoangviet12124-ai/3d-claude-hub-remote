@@ -1,6 +1,6 @@
 import { useSessionStore } from "../state/useSessionStore.ts";
 import { useTabStore } from "../state/useTabStore.ts";
-import type { PromptImage, SessionFileInfo, SessionInfo, SessionItem, SessionPermissionMode } from "./AgentBackend.ts";
+import type { PromptImage, SessionEffort, SessionFileInfo, SessionInfo, SessionItem, SessionModel, SessionPermissionMode } from "./AgentBackend.ts";
 import type { WebSocketAgentBackend } from "./WebSocketAgentBackend.ts";
 
 // The sessions extension (live Claude Code servers started with --control): wiring into useSessionStore and
@@ -25,6 +25,11 @@ function rememberLastSession(sessionId: string): void {
   } catch {
     // storage blocked: the board opens on the list instead
   }
+}
+
+/** Only the fields that were chosen, so an older server sees the same command as before. */
+function pickFields(p: { model?: SessionModel; effort?: SessionEffort }): { model?: SessionModel; effort?: SessionEffort } {
+  return { ...(p.model ? { model: p.model } : {}), ...(p.effort ? { effort: p.effort } : {}) };
 }
 
 function errorText(err: unknown): string {
@@ -183,10 +188,10 @@ export const sessionCommands = {
    * Continue a session. A session still open in a terminal is continued in a fork (a new session id), which
    * is then opened in place of the original.
    */
-  send: async (sessionId: string, text: string, permissionMode?: SessionPermissionMode, images: PromptImage[] = []): Promise<SendResult> => {
+  send: async (sessionId: string, text: string, permissionMode?: SessionPermissionMode, images: PromptImage[] = [], pick: { model?: SessionModel; effort?: SessionEffort } = {}): Promise<SendResult> => {
     try {
       const ack = await backend().request<{ sessionId: string; forked: boolean }>({
-        name: "sendPrompt", sessionId, text, ...(images.length > 0 ? { images } : {}), ...(permissionMode ? { permissionMode } : {}),
+        name: "sendPrompt", sessionId, text, ...(images.length > 0 ? { images } : {}), ...(permissionMode ? { permissionMode } : {}), ...pickFields(pick),
       });
       if (ack.sessionId !== sessionId) void sessionCommands.open(ack.sessionId, { retry: true });
       return { ok: true, sessionId: ack.sessionId, forked: ack.forked };
@@ -217,10 +222,10 @@ export const sessionCommands = {
     }
   },
 
-  start: async (cwd: string, text: string, permissionMode?: SessionPermissionMode, images: PromptImage[] = []): Promise<SendResult> => {
+  start: async (cwd: string, text: string, permissionMode?: SessionPermissionMode, images: PromptImage[] = [], pick: { model?: SessionModel; effort?: SessionEffort } = {}): Promise<SendResult> => {
     try {
       const ack = await backend().request<{ sessionId: string; forked: boolean }>({
-        name: "sendPrompt", cwd, text, ...(images.length > 0 ? { images } : {}), ...(permissionMode ? { permissionMode } : {}),
+        name: "sendPrompt", cwd, text, ...(images.length > 0 ? { images } : {}), ...(permissionMode ? { permissionMode } : {}), ...pickFields(pick),
       });
       void sessionCommands.open(ack.sessionId, { retry: true });
       return { ok: true, sessionId: ack.sessionId, forked: ack.forked };

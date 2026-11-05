@@ -8,6 +8,8 @@ import { firstLine } from "@/components/sessions/sessionText";
 import { Markdown } from "@/components/sessions/Markdown";
 import { AttachButton, AttachmentStrip, SessionImages, useAttachments } from "@/components/sessions/imageAttach";
 import { PermissionModePicker, rememberedMode } from "@/components/sessions/PermissionModePicker";
+import { ModelPicker, rememberedPick } from "@/components/sessions/ModelPicker";
+import type { ModelPick } from "@/components/sessions/ModelPicker";
 import { BranchChip, OwnerTag, ProjectChip, SessionStatusChip, ago, basename, useNow } from "@/components/sessions/sessionUi";
 import { Empty } from "@/components/ui";
 import type { SessionInfo, SessionItem, SessionPermissionMode } from "@/integrations/AgentBackend";
@@ -364,6 +366,7 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
   const prompt = useRef<HTMLTextAreaElement>(null);
   const allowedModes = useSessionStore((s) => s.capabilities.permissionModes) ?? DEFAULT_MODES;
   const [mode, setMode] = useState<SessionPermissionMode>(() => rememberedMode(allowedModes));
+  const [pick, setPick] = useState<ModelPick>(() => rememberedPick());
   const att = useAttachments(busy);
   const choose = (dir: string) => {
     setChosen(dir);
@@ -384,7 +387,7 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
     } catch {
       // storage blocked: the list still offers recent folders from the sessions
     }
-    const r = await sessionCommands.start(dir, att.text(text), mode, att.payload());
+    const r = await sessionCommands.start(dir, att.text(text), mode, att.payload(), pick);
     // On success the chat view replaces this form (sessionCommands.start opens the new session).
     if (!r.ok) {
       setBusy(false);
@@ -456,6 +459,7 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
         ) : null}
       </div>
       <PermissionModePicker id="new-session-mode" value={mode} allowed={allowedModes} onChange={setMode} disabled={busy} />
+      <ModelPicker id="new-session-model" value={pick} onChange={setPick} disabled={busy} />
       <label className="flex flex-col gap-1 text-[11.5px] text-mist-500">
         Việc cần giao
         <textarea
@@ -757,15 +761,22 @@ function Composer({ sessionId, session }: { sessionId: string; session: SessionI
     } else setPending(m);
   };
 
+  // Model and effort: a running web session reports its own; for any other the pick applies when the prompt starts it.
+  const running = session?.owner === "web" && session.status !== "ended";
+  const [pickDraft, setPickDraft] = useState<ModelPick | null>(null);
+  const pickShown: ModelPick = pickDraft ?? (running ? { ...(session.model ? { model: session.model } : {}), ...(session.effort ? { effort: session.effort } : {}) } : rememberedPick());
+  const effortNote = running && pickDraft && pickDraft.effort !== session.effort ? "Mức suy nghĩ mới áp dụng khi mở việc mới hoặc khi phiên này chạy lại; model thì đổi ngay từ tin tiếp theo." : null;
+
   const empty = !text.trim() && att.count === 0;
   const send = async () => {
     if (busy || empty || att.reading) return;
     setBusy(true);
     setError(null);
-    const r = await sessionCommands.send(sessionId, att.text(text), liveMode ? undefined : modeShown, att.payload());
+    const r = await sessionCommands.send(sessionId, att.text(text), liveMode ? undefined : modeShown, att.payload(), pickShown);
     setBusy(false);
     if (r.ok) {
       setText("");
+      setPickDraft(null);
       att.clear();
     } else setError(r.error ?? "Could not send.");
   };
@@ -790,6 +801,7 @@ function Composer({ sessionId, session }: { sessionId: string; session: SessionI
     >
       {forks ? <p className="text-[11px] leading-snug text-mist-500">Phiên này mở từ Claude Desktop: tin gửi từ đây sẽ mở một nhánh mới, phiên gốc giữ nguyên.</p> : null}
       <PermissionModePicker id={`mode-${sessionId}`} value={modeShown} allowed={allowedModes} onChange={(m) => void changeMode(m)} compact />
+      <ModelPicker id={`model-${sessionId}`} value={pickShown} onChange={setPickDraft} effortNote={effortNote} />
       {error ? (
         <p role="alert" className="rounded-lg border border-bad/30 bg-bad/10 px-2 py-1 text-[12px] text-bad">
           {error}

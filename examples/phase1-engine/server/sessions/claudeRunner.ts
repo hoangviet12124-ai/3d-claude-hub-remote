@@ -4,7 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { PromptImage, SessionPermissionMode } from "../../src/integrations/AgentBackend.ts";
+import type { PromptImage, SessionEffort, SessionModel, SessionPermissionMode } from "../../src/integrations/AgentBackend.ts";
 
 export interface PermissionAsk {
   toolName: string;
@@ -25,6 +25,9 @@ export interface RunOptions {
   fork: boolean;
   /** Starting permission mode. */
   permissionMode: SessionPermissionMode;
+  /** Model alias and effort; absent: whatever Claude Code's settings choose. */
+  model?: SessionModel;
+  effort?: SessionEffort;
   canUseTool(ask: PermissionAsk): Promise<boolean>;
   /**
    * The session id Claude Code assigned (from its init message). Called again with a new id when the
@@ -43,6 +46,8 @@ export interface RunHandle {
   interrupt(): Promise<void>;
   /** Change the permission mode of the running session (applies from its next tool call). */
   setPermissionMode(mode: SessionPermissionMode): Promise<void>;
+  /** Switch the model of the running session (applies from its next turn). */
+  setModel(model: SessionModel): Promise<void>;
   close(): void;
 }
 
@@ -128,6 +133,8 @@ export function createSdkRunner(): Runner {
         ...(claudePath ? { pathToClaudeCodeExecutable: claudePath } : {}),
         // Always explicit: left out, the CLI would take settings' defaultMode and the UI would show the wrong mode.
         permissionMode: o.permissionMode,
+        ...(o.model ? { model: o.model } : {}),
+        ...(o.effort ? { effort: o.effort } : {}),
         // Only reachable when the server was started with --allow-bypass (the hub refuses the mode otherwise).
         ...(o.permissionMode === "bypassPermissions" ? { allowDangerouslySkipPermissions: true } : {}),
         // Questions come back as plain text in the chat instead of a picker the web UI cannot render.
@@ -164,6 +171,9 @@ export function createSdkRunner(): Runner {
       },
       setPermissionMode: async (mode) => {
         await q.setPermissionMode(mode);
+      },
+      setModel: async (model) => {
+        await q.setModel(model);
       },
       close: () => {
         prompts.close();

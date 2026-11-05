@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Maximize2, Minimize2, Plus, Presentation, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Columns2, Maximize2, Minimize2, MessageSquare, Plus, Presentation, X } from "lucide-react";
 import { getAgent } from "@/agents/AgentRegistry";
 import { subagentRole } from "@/agents/subagentRole";
 import type { AgentId } from "@/agents/agentTypes";
@@ -244,6 +244,29 @@ function OfficeCorner({ onEnlarge }: { onEnlarge: () => void }) {
   );
 }
 
+const CHAT_ONLY_KEY = "aaw:board-chat-only";
+
+/** "Chỉ chat": the conversation takes the whole board, the reports and the small office are hidden. Kept per browser. */
+function useChatOnly(): [boolean, (v: boolean) => void] {
+  // The board only renders once opened in the browser, so reading storage on first render cannot mismatch the server.
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(CHAT_ONLY_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const set = (v: boolean) => {
+    setOn(v);
+    try {
+      localStorage.setItem(CHAT_ONLY_KEY, v ? "1" : "0");
+    } catch {
+      // storage blocked
+    }
+  };
+  return [on, set];
+}
+
 export function MeetingBoard() {
   const open = useWorldStore((s) => s.board);
   const dock = useWorldStore((s) => s.boardDock);
@@ -254,6 +277,8 @@ export function MeetingBoard() {
   const openId = useSessionStore((s) => s.openId);
   const composing = useSessionStore((s) => s.composeNew);
   const known = useSessionStore((s) => s.sessions.length);
+  const [chatOnly, setChatOnly] = useChatOnly();
+  const wide = chatOnly && !dock;
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -293,7 +318,11 @@ export function MeetingBoard() {
           <Presentation size={dock ? 16 : 18} className="flex-none text-signal" aria-hidden />
           <div className="flex min-w-0 flex-1 flex-col">
             <h2 className="text-[15px] font-semibold text-mist-100">{dock ? "Manager" : "Bảng họp"}</h2>
-            {dock ? null : <p className="truncate text-[12px] text-mist-500">Bên trái: các agent trình bày, văn phòng thu nhỏ ở dưới. Bên phải: trao đổi và giao việc cho Manager.</p>}
+            {dock ? null : (
+              <p className="truncate text-[12px] text-mist-500">
+                {wide ? "Chỉ chat: các việc xếp thành thẻ phía trên, bấm đúp vào thẻ để đặt tên." : "Bên trái: các agent trình bày, văn phòng thu nhỏ ở dưới. Bên phải: trao đổi và giao việc cho Manager."}
+              </p>
+            )}
           </div>
           {live && control ? (
             <button
@@ -308,6 +337,18 @@ export function MeetingBoard() {
               <Plus size={14} /> Phiên mới
             </button>
           ) : null}
+          {dock || !live ? null : (
+            <button
+              type="button"
+              onClick={() => setChatOnly(!chatOnly)}
+              className="btn btn-quiet h-8 px-2 text-[12.5px]"
+              title={chatOnly ? "Hiện lại báo cáo các agent và văn phòng thu nhỏ bên trái" : "Ẩn báo cáo và văn phòng, để khung trao đổi chiếm cả bảng"}
+              aria-pressed={chatOnly}
+              data-testid="board-chat-only"
+            >
+              {chatOnly ? <Columns2 size={14} /> : <MessageSquare size={14} />} {chatOnly ? "Hiện báo cáo" : "Chỉ chat"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setDock(!dock)}
@@ -323,9 +364,9 @@ export function MeetingBoard() {
           </button>
         </header>
         {live ? (
-          <div className={dock ? "flex min-h-0 flex-1 flex-col" : "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)] lg:grid-rows-1"}>
-            {/* Docked, the reports are hidden; the chat keeps its place in the tree so the conversation is not reloaded. */}
-            {dock ? null : (
+          <div className={dock || wide ? "flex min-h-0 flex-1 flex-col" : "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)] lg:grid-rows-1"}>
+            {/* Docked or chat only, the reports are hidden; the chat keeps its place in the tree so the conversation is not reloaded. */}
+            {dock || wide ? null : (
               <div className="flex min-h-0 flex-col border-b border-mist-500/12 lg:border-b-0 lg:border-r">
                 <h3 className="flex-none px-5 pt-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Các agent trình bày</h3>
                 <Presentations />
@@ -333,13 +374,13 @@ export function MeetingBoard() {
               </div>
             )}
             <div className="flex min-h-0 flex-1 flex-col">
-              {dock ? null : <h3 className="flex-none px-4 pt-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Trao đổi với Manager</h3>}
+              {dock || wide ? null : <h3 className="flex-none px-4 pt-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Trao đổi với Manager</h3>}
               <SessionTabs canStart={control} />
               {/* Permission asks also float over the office, which this window covers: show them here too. */}
               <div className="flex flex-none justify-center px-3 pt-2 empty:hidden">
                 <PermissionStack />
               </div>
-              <div className="flex min-h-0 flex-1 flex-col">
+              <div className={`flex min-h-0 flex-1 flex-col ${wide ? "mx-auto w-full max-w-[1100px]" : ""}`}>
                 <SessionsPanel />
               </div>
             </div>
