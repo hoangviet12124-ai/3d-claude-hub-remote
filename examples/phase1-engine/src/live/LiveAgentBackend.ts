@@ -20,6 +20,7 @@ import { LOCATIONS } from "../simulation/worldLayout.ts";
 import type { LocationId } from "../simulation/worldLayout.ts";
 import { PHASE_STATUS } from "../tasks/taskTypes.ts";
 import { slashCommand, typedText } from "./promptText.ts";
+import { OrgTracker } from "./orgTracker.ts";
 import type { CreateTaskInput, Task, WorkflowPhase } from "../tasks/taskTypes.ts";
 
 /** The subset of Claude Code hook input this source reads. Unknown fields are ignored. */
@@ -35,6 +36,7 @@ export interface HookPayload {
   error?: string;
   is_interrupt?: boolean;
   agent_type?: string;
+  agent_id?: string;
   source?: string;
   reason?: string;
   message?: string;
@@ -130,6 +132,10 @@ export interface LiveOptions {
   now?: () => number;
   /** Tick on a timer. Tests turn this off and call tick() themselves. */
   autoTick?: boolean;
+  /** Agent file names in <cwd>/.claude/agents, for the org chart. The server reads the disk; none by default. */
+  listAgents?: (cwd: string) => string[];
+  /** The work folder the org chart reads agent files from until a hook names one. */
+  orgCwd?: string;
 }
 
 /** Auto focus leaves a session only after it has been idle (turn ended, or no hook) this long (ms). */
@@ -208,10 +214,18 @@ export class LiveAgentBackend implements AgentBackend {
   private status: SimulationStatus = "running";
   private timer: ReturnType<typeof setInterval> | null = null;
   private last = 0;
-  private opts: Required<LiveOptions>;
+  private opts: Required<Omit<LiveOptions, "orgCwd">>;
+  private org: OrgTracker;
 
   constructor(options: LiveOptions = {}) {
-    this.opts = { showPrompts: true, now: Date.now, autoTick: true, ...options };
+    const { orgCwd, ...rest } = options;
+    this.opts = { showPrompts: true, now: Date.now, autoTick: true, listAgents: () => [], ...rest };
+    this.org = new OrgTracker({
+      now: () => this.opts.now(),
+      showPrompts: this.opts.showPrompts,
+      listAgents: this.opts.listAgents,
+      ...(orgCwd ? { cwd: orgCwd } : {}),
+    });
     for (const profile of AGENTS) {
       this.controllers.set(profile.id, new AgentController(profile, {
         walkSpeed: SIM_CONFIG.walkSpeed,
@@ -316,7 +330,9 @@ export class LiveAgentBackend implements AgentBackend {
       // Focus is settled before the hook acts, so a session that just took focus plays this hook out in full.
       const asks = p.hook_event_name === "PermissionRequest" || p.hook_event_name === "Notification";
       this.autoFocus(asks ? s : null);
-      if (this.handle(s, p)) this.publish();
+      const acted = this.handle(s, p);
+      const charted = this.org.ingest(p);
+      if (acted || charted) this.publish();
     } finally {
       this.ctx = null;
     }
@@ -814,6 +830,7 @@ export class LiveAgentBackend implements AgentBackend {
       tasks: [...this.tasks.values()],
       links: this.links,
       live: { focus: { sessionId: this.focusId, mode: this.focusMode }, sessions },
+      org: this.org.state(sessions),
     });
   }
 

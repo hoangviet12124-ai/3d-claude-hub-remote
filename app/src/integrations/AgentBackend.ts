@@ -23,6 +23,48 @@ export interface WorldSnapshot {
   links: CommLink[];
   /** Live Claude Code sources only: which session the robots act out, and the recent sessions. */
   live?: LiveWorldState;
+  /** Live Claude Code sources only: who in Tổ giúp việc is working now, for the org chart (sơ đồ). */
+  org?: OrgState;
+}
+
+/** A lamp on the org chart: off, working, waiting for you, or stopped by an error (e.g. the usage limit). */
+export type OrgLamp = "off" | "on" | "wait" | "err";
+
+/** One subagent at work (several of the same agent file can run at once). */
+export interface OrgRun {
+  /** Claude Code's agent id when the hook sends one, else a made-up one. */
+  id: string;
+  /** The agent file name in .claude/agents, e.g. "thu-thu" ("general-purpose" for built-in agents). */
+  agentType: string;
+  /** What the Manager asked it to do (the Agent tool's description); empty when prompts are hidden. */
+  task: string;
+  state: Exclude<OrgLamp, "off">;
+  /** Wall-clock ms it started. */
+  since: number;
+}
+
+/** A hand-off the chart animates once: Boss → Manager, Manager → agent, and back. */
+export interface OrgMove {
+  /** Increasing; the view animates each new number once. */
+  seq: number;
+  kind: "prompt" | "assign" | "report" | "answer" | "fail";
+  /** The agent file name for assign/report; empty otherwise. */
+  agentType: string;
+  /** Wall-clock ms. */
+  at: number;
+  /** One line for the log. */
+  text: string;
+}
+
+export interface OrgState {
+  /** Agent file names (without .md) in .claude/agents of the folder the sessions run in, plus any seen at work. */
+  agents: string[];
+  /** The main session(s), i.e. the Manager. `task` is the busiest session's title. */
+  manager: { state: OrgLamp; task: string };
+  /** Subagents at work now, and ones an error stopped a few minutes ago; oldest first. */
+  runs: OrgRun[];
+  /** The last hand-offs, oldest first. */
+  moves: OrgMove[];
 }
 
 /** One recent Claude Code session as the live source sees it through hooks. */

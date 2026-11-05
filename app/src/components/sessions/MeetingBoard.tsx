@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Columns2, Maximize2, Minimize2, MessageSquare, Plus, Presentation, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Columns2, ExternalLink, Maximize2, Minimize2, MessageSquare, Plus, Presentation, X } from "lucide-react";
 import { getAgent } from "@/agents/AgentRegistry";
 import { subagentRole } from "@/agents/subagentRole";
 import type { AgentId } from "@/agents/agentTypes";
@@ -13,6 +13,7 @@ import { SessionTabs } from "@/components/sessions/SessionTabs";
 import type { SessionItem } from "@/integrations/AgentBackend";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useWorldStore } from "@/state/useWorldStore";
+import { OrgBoard } from "@/components/org/OrgBoard";
 
 // The meeting board (Bảng họp): a large window over the office. Left, what each agent presented: the report every
 // subagent handed back to the Manager (the Agent/Task tool result in the session transcript), then the Manager's
@@ -204,12 +205,35 @@ function Presentations() {
  * The office, small, in the board's corner: an empty box whose place on screen goes to the store, where AppShell
  * draws the 3D canvas over it. Below the desktop layout the box is hidden and the office is not drawn small.
  */
+const OFFICE_VIEW_KEY = "aaw:office-view";
+
+/** The corner shows the org chart (sơ đồ, default) or the small 3D office. Kept per browser. */
+function useOfficeView(): ["so-do" | "3d", (v: "so-do" | "3d") => void] {
+  const [view, setView] = useState<"so-do" | "3d">(() => {
+    try {
+      return localStorage.getItem(OFFICE_VIEW_KEY) === "3d" ? "3d" : "so-do";
+    } catch {
+      return "so-do";
+    }
+  });
+  const set = (v: "so-do" | "3d") => {
+    setView(v);
+    try {
+      localStorage.setItem(OFFICE_VIEW_KEY, v);
+    } catch {
+      // storage blocked
+    }
+  };
+  return [view, set];
+}
+
 function OfficeCorner({ onEnlarge }: { onEnlarge: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [view, setView] = useOfficeView();
   useLayoutEffect(() => {
     const el = ref.current;
     const set = useWorldStore.getState().setOfficeSlot;
-    if (!el) return;
+    if (!el || view !== "3d") return;
     let raf = 0;
     const measure = () => {
       cancelAnimationFrame(raf);
@@ -228,17 +252,48 @@ function OfficeCorner({ onEnlarge }: { onEnlarge: () => void }) {
       window.removeEventListener("resize", measure);
       set(null);
     };
-  }, []);
+  }, [view]);
+  const tab = (v: "so-do" | "3d", label: string, tip: string) => (
+    <button
+      type="button"
+      onClick={() => setView(v)}
+      className={`h-6 px-2 text-[11.5px] font-medium ${view === v ? "bg-signal text-white" : "text-mist-300 hover:bg-ink-700"}`}
+      aria-pressed={view === v}
+      title={tip}
+      data-testid={`office-view-${v}`}
+    >
+      {label}
+    </button>
+  );
   return (
     <div className="flex flex-none flex-col border-t border-mist-500/12 max-lg:hidden" data-testid="office-corner">
       <div className="flex items-center gap-2 px-5 pb-1.5 pt-2.5">
         <h3 className="flex-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500">Văn phòng đang làm gì</h3>
-        <button type="button" onClick={onEnlarge} className="btn btn-quiet h-7 px-2 text-[12px]" title="Phóng to văn phòng để xem các agent làm việc; khung trao đổi thu sang bên phải" data-testid="office-enlarge">
-          <Maximize2 size={13} /> Phóng to
-        </button>
+        <div className="flex overflow-hidden rounded-[3px] border border-mist-500/25" role="group" aria-label="Cách xem văn phòng">
+          {tab("so-do", "Sơ đồ", "Sơ đồ đèn: ai đang làm, ai chờ duyệt, việc giao đi và nộp về")}
+          {tab("3d", "3D", "Văn phòng 3D với các robot")}
+        </div>
+        {view === "so-do" ? (
+          <a
+            href="/so-do"
+            target="_blank"
+            rel="noopener"
+            className="btn btn-quiet h-7 px-2 text-[12px]"
+            title="Mở sơ đồ trong cửa sổ riêng, để đặt cạnh Antigravity hay Claude Desktop"
+            data-testid="org-open-window"
+          >
+            <ExternalLink size={13} /> Cửa sổ riêng
+          </a>
+        ) : (
+          <button type="button" onClick={onEnlarge} className="btn btn-quiet h-7 px-2 text-[12px]" title="Phóng to văn phòng để xem các agent làm việc; khung trao đổi thu sang bên phải" data-testid="office-enlarge">
+            <Maximize2 size={13} /> Phóng to
+          </button>
+        )}
       </div>
       <div className="px-4 pb-4">
-        <div ref={ref} className="h-[clamp(180px,30vh,320px)] w-full rounded-[3px] border border-mist-500/20 bg-ink-950" />
+        <div ref={ref} className="h-[clamp(180px,30vh,320px)] w-full rounded-[3px] border border-mist-500/20 bg-ink-950">
+          {view === "so-do" ? <OrgBoard variant="compact" /> : null}
+        </div>
       </div>
     </div>
   );

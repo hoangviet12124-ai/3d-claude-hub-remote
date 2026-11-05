@@ -11,9 +11,9 @@
 //
 // Open http://127.0.0.1:8787/ for the viewer (run `npm run viewer` once first).
 import { randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { MockAgentBackend } from "../src/integrations/MockAgentBackend.ts";
@@ -47,10 +47,18 @@ const { values } = parseArgs({
 const here = dirname(fileURLToPath(import.meta.url));
 const viewerFile = join(here, "..", "viewer", "dist", "fragment.html");
 
+/** Agent file names in <cwd>/.claude/agents (the org chart builds its departments from them). */
+function agentFiles(cwd: string): string[] {
+  const dir = join(cwd, ".claude", "agents");
+  if (!isAbsolute(cwd) || !existsSync(dir)) return [];
+  return readdirSync(dir).filter((f) => f.toLowerCase().endsWith(".md")).map((f) => f.slice(0, -3));
+}
+
 let backend: AgentBackend;
 let live: LiveAgentBackend | null = null;
 if (values.source === "claude-code") {
-  live = new LiveAgentBackend({ showPrompts: !values["hide-prompts"] });
+  const orgCwd = values.workdir ?? process.env.AAW_WORKDIR;
+  live = new LiveAgentBackend({ showPrompts: !values["hide-prompts"], listAgents: agentFiles, ...(orgCwd ? { orgCwd } : {}) });
   backend = live;
 } else if (values.source === "sim") {
   backend = new MockAgentBackend();

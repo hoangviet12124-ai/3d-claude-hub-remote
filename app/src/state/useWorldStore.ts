@@ -4,7 +4,7 @@ import type { AudioState, SoundMode, SoundSettings } from "@/audio/soundEngine";
 import { SOUND_STORAGE_KEY, defaultSoundSettings, parseSoundSettings, serializeSoundSettings } from "@/audio/soundEngine";
 import type { AgentEvent } from "@/events/eventTypes";
 import { appendEvent } from "@/events/eventStore";
-import type { CommLink, LiveWorldState, SimulationStatus, WorldSnapshot } from "@/integrations/AgentBackend";
+import type { CommLink, LiveWorldState, OrgState, SimulationStatus, WorldSnapshot } from "@/integrations/AgentBackend";
 import type { ConnectionState } from "@/integrations/WebSocketAgentBackend";
 import { SIM_CONFIG } from "@/simulation/simulationConfig";
 import type { Task } from "@/tasks/taskTypes";
@@ -82,6 +82,8 @@ export interface WorldState {
    * kept while nothing in it changes, so the session switcher does not re-render with progress.
    */
   live: LiveWorldState | null;
+  /** Live sources: who in Tổ giúp việc is working now, for the org chart. Same object while nothing changes. */
+  org: OrgState | null;
   /** Every event received, newest last, capped at FEED_CAP. Selectors in events/eventStore filter it. */
   events: AgentEvent[];
   backend: BackendInfo;
@@ -167,7 +169,7 @@ function significantSignature(s: WorldSnapshot): string {
   }
   sig += "|";
   for (const l of s.links) sig += `${l.id};`;
-  return `${sig}|${liveSignature(s.live)}`;
+  return `${sig}|${liveSignature(s.live)}|${orgOf(s).sig}`;
 }
 
 function liveSignature(live: LiveWorldState | undefined): string {
@@ -178,6 +180,15 @@ function liveSignature(live: LiveWorldState | undefined): string {
 }
 
 let lastLive: { sig: string; value: LiveWorldState | null } = { sig: "", value: null };
+
+let lastOrg: { sig: string; value: OrgState | null } = { sig: "", value: null };
+
+/** The org chart, compared by content so an unchanged chart keeps its object (and its subscribers stay quiet). */
+function orgOf(s: WorldSnapshot): { sig: string; value: OrgState | null } {
+  const sig = s.org ? JSON.stringify(s.org) : "";
+  if (sig !== lastOrg.sig) lastOrg = { sig, value: s.org ?? null };
+  return lastOrg;
+}
 
 function liveOf(s: WorldSnapshot): LiveWorldState | null {
   const sig = liveSignature(s.live);
@@ -205,8 +216,8 @@ function now(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
-function mirrorOf(s: WorldSnapshot): Pick<WorldState, "simStatus" | "speed" | "clock" | "agents" | "tasks" | "links" | "live"> {
-  return { simStatus: s.status, speed: s.speed, clock: s.clock, agents: s.agents, tasks: s.tasks, links: s.links, live: liveOf(s) };
+function mirrorOf(s: WorldSnapshot): Pick<WorldState, "simStatus" | "speed" | "clock" | "agents" | "tasks" | "links" | "live" | "org"> {
+  return { simStatus: s.status, speed: s.speed, clock: s.clock, agents: s.agents, tasks: s.tasks, links: s.links, live: liveOf(s), org: orgOf(s).value };
 }
 
 function readStorage(key: string): string | null {
@@ -242,6 +253,7 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   tasks: [],
   links: [],
   live: null,
+  org: null,
   events: [],
   backend: INITIAL_BACKEND,
 
