@@ -376,7 +376,7 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
     const dir = cwd.trim();
     if (!dir.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(dir)) return setError("Thư mục làm việc phải là đường dẫn đầy đủ, ví dụ C:\\Users\\ACV\\...\\Brainstorm.");
     if (att.reading) return;
-    if (!text.trim() && att.items.length === 0) return setError("Anh chưa gõ việc cần giao.");
+    if (!text.trim() && att.count === 0) return setError("Anh chưa gõ việc cần giao.");
     setBusy(true);
     setError(null);
     try {
@@ -384,7 +384,7 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
     } catch {
       // storage blocked: the list still offers recent folders from the sessions
     }
-    const r = await sessionCommands.start(dir, text, mode, att.payload());
+    const r = await sessionCommands.start(dir, att.text(text), mode, att.payload());
     // On success the chat view replaces this form (sessionCommands.start opens the new session).
     if (!r.ok) {
       setBusy(false);
@@ -757,12 +757,12 @@ function Composer({ sessionId, session }: { sessionId: string; session: SessionI
     } else setPending(m);
   };
 
-  const empty = !text.trim() && att.items.length === 0;
+  const empty = !text.trim() && att.count === 0;
   const send = async () => {
     if (busy || empty || att.reading) return;
     setBusy(true);
     setError(null);
-    const r = await sessionCommands.send(sessionId, text, liveMode ? undefined : modeShown, att.payload());
+    const r = await sessionCommands.send(sessionId, att.text(text), liveMode ? undefined : modeShown, att.payload());
     setBusy(false);
     if (r.ok) {
       setText("");

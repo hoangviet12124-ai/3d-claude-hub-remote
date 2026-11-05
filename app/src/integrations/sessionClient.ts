@@ -196,6 +196,17 @@ export const sessionCommands = {
   },
 
   /** Start a new session in `cwd` (an absolute path on the server's machine) and open it. */
+  /** Save a document on the server's machine for a prompt; resolves to its path, rejects with a message. */
+  saveAttachment: async (fileName: string, data: string): Promise<string> => {
+    try {
+      const ack = await backend().request<{ path: string }>({ name: "saveAttachment", fileName, data });
+      return ack.path;
+    } catch (err) {
+      const message = errorText(err);
+      throw new Error(/unknown command/i.test(message) ? "Văn phòng đang chạy bản cũ, chưa nhận tệp đính kèm. Anh chạy lại lệnh cập nhật (git pull rồi npm run autostart)." : message);
+    }
+  },
+
   /** Change how a running web session handles permission asks; returns an error message or null. */
   setMode: async (sessionId: string, mode: SessionPermissionMode): Promise<string | null> => {
     try {

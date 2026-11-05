@@ -8,6 +8,7 @@ import type { PermissionRequestInfo, PromptImage, ServerMessage, SessionCommand,
 import type { Runner, RunHandle } from "./claudeRunner.ts";
 import { TranscriptTail, isAllowedTranscript, projectsRoot, toolSummary } from "./transcript.ts";
 import { FileTickets, resolveSessionVideo } from "./sessionFiles.ts";
+import { defaultAttachDir, saveAttachment } from "./attachments.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { slashCommand, typedText } from "../../src/live/promptText.ts";
 
@@ -56,6 +57,8 @@ export interface SessionHubOptions {
    * back (e.g. ~/.aaw/hidden-sessions.json). Absent: remembered until the server stops.
    */
   hiddenFile?: string;
+  /** Where documents attached in the web UI are saved. Default: see `defaultAttachDir`. */
+  attachDir?: string;
 }
 
 /** A removed session is remembered this long; past it, discovery (24 h by default) would not list it anyway. */
@@ -157,6 +160,7 @@ const SESSION_COMMANDS: ReadonlySet<string> = new Set([
   "endSession",
   "sessionImage",
   "sessionFile",
+  "saveAttachment",
 ]);
 const SAFE_MODES: SessionPermissionMode[] = ["default", "acceptEdits", "auto", "plan", "dontAsk"];
 
@@ -223,6 +227,7 @@ export class SessionHub {
   private hidden = new Map<string, number>();
   private hiddenFile: string | undefined;
   private files = new FileTickets();
+  readonly attachDir: string;
 
   constructor(options: SessionHubOptions = {}) {
     this.root = options.root ?? projectsRoot();
@@ -236,6 +241,7 @@ export class SessionHub {
     this.idleEvictMs = options.idleEvictMs ?? 5 * 60 * 1000;
     this.forgetAfterMs = options.forgetAfterMs ?? 48 * 60 * 60 * 1000;
     this.hiddenFile = options.hiddenFile;
+    this.attachDir = options.attachDir ?? defaultAttachDir(this.workdir);
     this.loadHidden();
     this.gcTimer = setInterval(() => this.collect(), 60_000);
     if (this.discoverWithinMs > 0) {
@@ -406,6 +412,10 @@ export class SessionHub {
         if (!s || !s.subscribers.has(conn)) throw new Error("Open the session first.");
         const video = resolveSessionVideo(s.info.cwd, String(c.path ?? ""));
         return { url: this.files.issue(video, conn), mediaType: video.mediaType, size: video.size, name: video.name };
+      }
+      case "saveAttachment": {
+        this.requireControl();
+        return { path: saveAttachment(this.attachDir, c.fileName, c.data) };
       }
       case "setPermissionMode": {
         this.requireControl();

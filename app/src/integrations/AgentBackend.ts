@@ -119,6 +119,14 @@ export const MAX_PROMPT_IMAGES = 8;
 /** Largest base64 payload per image (the Claude API refuses images over 5 MB). */
 export const MAX_PROMPT_IMAGE_BASE64 = 5 * 1024 * 1024;
 
+/**
+ * Documents a prompt may name (by extension). The server saves them with `saveAttachment` and the prompt carries
+ * their paths, since Claude Code reads such files from disk rather than as message content.
+ */
+export const ATTACH_DOC_EXTENSIONS = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".xlsm", ".csv", ".ppt", ".pptx", ".txt", ".md", ".rtf", ".odt", ".ods", ".xml", ".json", ".msg", ".eml"] as const;
+/** Largest document `saveAttachment` accepts. */
+export const MAX_ATTACH_DOC_BYTES = 40 * 1024 * 1024;
+
 /** An image attached to a prompt: `data` is base64 without a `data:` prefix. */
 export interface PromptImage {
   mediaType: PromptImageType;
@@ -185,7 +193,12 @@ export type SessionCommand =
    * Play a video from a session's working folder (a path Claude mentioned, absolute or relative to that folder).
    * Only video files inside the folder are allowed. Acks a `SessionFileInfo`; the bytes come over HTTP at its `url`.
    */
-  | { name: "sessionFile"; sessionId: string; path: string };
+  | { name: "sessionFile"; sessionId: string; path: string }
+  /**
+   * Save a document for a prompt (`data` is base64) into the server's attachment folder, under today's date,
+   * never overwriting. Acks `{ path }`, the absolute path to name in the prompt.
+   */
+  | { name: "saveAttachment"; fileName: string; data: string };
 
 /** File types `sessionFile` serves, by extension. */
 export const SESSION_VIDEO_TYPES: Readonly<Record<string, string>> = {

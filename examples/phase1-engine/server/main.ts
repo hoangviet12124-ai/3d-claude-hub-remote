@@ -142,6 +142,7 @@ if (values["proxy-app"]) console.log(`  proxy      the app on :${values["app-por
 if (sessions) {
   console.log(`  control    on: transcripts, prompts and permission answers from the web UI`);
   if (values.workdir ?? process.env.AAW_WORKDIR) console.log(sessions?.workdir ? `  workdir    new sessions start in ${sessions.workdir}` : `  warning    workdir ${values.workdir ?? process.env.AAW_WORKDIR} is not an existing absolute folder; new sessions must name one`);
+  if (sessions) console.log(`  attach     documents attached in the web UI are saved under ${sessions.attachDir}`);
   console.log(`  app        http://localhost:${values["app-port"]}/${q}   (run the app with NEXT_PUBLIC_AGENT_BACKEND=websocket NEXT_PUBLIC_AGENT_WS_URL=${server.url})`);
 }
 if (server.tailnetPort) {
