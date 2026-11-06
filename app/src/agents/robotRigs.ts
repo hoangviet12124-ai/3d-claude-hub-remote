@@ -32,5 +32,6 @@ export const ROBOT_RIGS: Record<AgentRole, RobotRig> = {
   product_manager: { scale: 1.0, hipY: 0.66, thigh: 0.29, shin: 0.29, hipX: 0.12, shoulderY: 0.46, shoulderX: 0.31, upperArm: 0.25, forearm: 0.24, headY: 0.6, labelY: 1.9, chestY: 1.07 },
   engineer: { scale: 1.04, hipY: 0.66, thigh: 0.29, shin: 0.29, hipX: 0.13, shoulderY: 0.47, shoulderX: 0.34, upperArm: 0.26, forearm: 0.25, headY: 0.61, labelY: 1.92, chestY: 1.08 },
   qa: { scale: 0.96, hipY: 0.6, thigh: 0.26, shin: 0.26, hipX: 0.13, shoulderY: 0.42, shoulderX: 0.33, upperArm: 0.23, forearm: 0.22, headY: 0.55, labelY: 2.0, chestY: 0.98 },
+  assistant: { scale: 0.74, hipY: 0.5, thigh: 0.22, shin: 0.22, hipX: 0.11, shoulderY: 0.4, shoulderX: 0.3, upperArm: 0.21, forearm: 0.2, headY: 0.52, labelY: 1.75, chestY: 0.86 },
   reviewer: { scale: 1.02, hipY: 0.7, thigh: 0.31, shin: 0.31, hipX: 0.11, shoulderY: 0.5, shoulderX: 0.29, upperArm: 0.27, forearm: 0.26, headY: 0.64, labelY: 1.96, chestY: 1.12 },
 };

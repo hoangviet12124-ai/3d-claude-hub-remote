@@ -23,6 +23,48 @@ export interface WorldSnapshot {
   links: CommLink[];
   /** Live Claude Code sources only: which session the robots act out, and the recent sessions. */
   live?: LiveWorldState;
+  /** Live Claude Code sources only: who in Tổ giúp việc is working now, for the org chart (sơ đồ). */
+  org?: OrgState;
+}
+
+/** A lamp on the org chart: off, working, waiting for you, or stopped by an error (e.g. the usage limit). */
+export type OrgLamp = "off" | "on" | "wait" | "err";
+
+/** One subagent at work (several of the same agent file can run at once). */
+export interface OrgRun {
+  /** Claude Code's agent id when the hook sends one, else a made-up one. */
+  id: string;
+  /** The agent file name in .claude/agents, e.g. "thu-thu" ("general-purpose" for built-in agents). */
+  agentType: string;
+  /** What the Manager asked it to do (the Agent tool's description); empty when prompts are hidden. */
+  task: string;
+  state: Exclude<OrgLamp, "off">;
+  /** Wall-clock ms it started. */
+  since: number;
+}
+
+/** A hand-off the chart animates once: Boss → Manager, Manager → agent, and back. */
+export interface OrgMove {
+  /** Increasing; the view animates each new number once. */
+  seq: number;
+  kind: "prompt" | "assign" | "report" | "answer" | "fail";
+  /** The agent file name for assign/report; empty otherwise. */
+  agentType: string;
+  /** Wall-clock ms. */
+  at: number;
+  /** One line for the log. */
+  text: string;
+}
+
+export interface OrgState {
+  /** Agent file names (without .md) in .claude/agents of the folder the sessions run in, plus any seen at work. */
+  agents: string[];
+  /** The main session(s), i.e. the Manager. `task` is the busiest session's title. */
+  manager: { state: OrgLamp; task: string };
+  /** Subagents at work now, and ones an error stopped a few minutes ago; oldest first. */
+  runs: OrgRun[];
+  /** The last hand-offs, oldest first. */
+  moves: OrgMove[];
 }
 
 /** One recent Claude Code session as the live source sees it through hooks. */
@@ -92,6 +134,13 @@ export type BackendCommand =
  */
 export type SessionPermissionMode = "default" | "acceptEdits" | "auto" | "plan" | "dontAsk" | "bypassPermissions";
 
+/** Models a web session can be started with: Claude Code's own aliases, so the newest of each family is used. */
+export const SESSION_MODELS = ["sonnet", "opus", "haiku"] as const;
+export type SessionModel = (typeof SESSION_MODELS)[number];
+/** How hard Claude thinks (Claude Code's effort levels). */
+export const SESSION_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type SessionEffort = (typeof SESSION_EFFORTS)[number];
+
 /** A Claude Code session the server has seen through hooks or started itself. */
 export interface SessionInfo {
   sessionId: string;
@@ -109,6 +158,9 @@ export interface SessionInfo {
   readable: boolean;
   /** Permission mode of a session run from the web UI (unknown for terminal sessions). */
   permissionMode?: SessionPermissionMode;
+  /** Model and effort chosen in the web UI for this session's process (absent: Claude Code's own default). */
+  model?: SessionModel;
+  effort?: SessionEffort;
 }
 
 /** Image types a prompt may carry (what the Claude API accepts). */
@@ -118,6 +170,14 @@ export type PromptImageType = (typeof PROMPT_IMAGE_TYPES)[number];
 export const MAX_PROMPT_IMAGES = 8;
 /** Largest base64 payload per image (the Claude API refuses images over 5 MB). */
 export const MAX_PROMPT_IMAGE_BASE64 = 5 * 1024 * 1024;
+
+/**
+ * Documents a prompt may name (by extension). The server saves them with `saveAttachment` and the prompt carries
+ * their paths, since Claude Code reads such files from disk rather than as message content.
+ */
+export const ATTACH_DOC_EXTENSIONS = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".xlsm", ".csv", ".ppt", ".pptx", ".txt", ".md", ".rtf", ".odt", ".ods", ".xml", ".json", ".msg", ".eml"] as const;
+/** Largest document `saveAttachment` accepts. */
+export const MAX_ATTACH_DOC_BYTES = 40 * 1024 * 1024;
 
 /** An image attached to a prompt: `data` is base64 without a `data:` prefix. */
 export interface PromptImage {
@@ -167,7 +227,11 @@ export type SessionCommand =
    * without, start a new session in `cwd`. `images` are attached before the text (a prompt may be images
    * only). The ack carries `{ sessionId, forked }`.
    */
-  | { name: "sendPrompt"; text: string; images?: PromptImage[]; sessionId?: string; cwd?: string; permissionMode?: SessionPermissionMode }
+  /**
+   * `model` switches a running session at once; `effort` takes effect when the session's process starts (a new
+   * session, or continuing one that is not running).
+   */
+  | { name: "sendPrompt"; text: string; images?: PromptImage[]; sessionId?: string; cwd?: string; permissionMode?: SessionPermissionMode; model?: SessionModel; effort?: SessionEffort }
   /** The bytes of an image in a session you opened. Acks `{ mediaType, data }` (base64). */
   | { name: "sessionImage"; sessionId: string; imageId: string }
   /** Change the permission mode of a session running from the web UI, effective for its next tool call. */
@@ -179,11 +243,18 @@ export type SessionCommand =
    * if it gets a new prompt. Refused while a turn runs or a permission ask is pending.
    */
   | { name: "removeSession"; sessionId: string }
+  /** Close the Claude Code process of a web session; it stays listed as ended and can be continued. */
+  | { name: "endSession"; sessionId: string }
   /**
    * Play a video from a session's working folder (a path Claude mentioned, absolute or relative to that folder).
    * Only video files inside the folder are allowed. Acks a `SessionFileInfo`; the bytes come over HTTP at its `url`.
    */
-  | { name: "sessionFile"; sessionId: string; path: string };
+  | { name: "sessionFile"; sessionId: string; path: string }
+  /**
+   * Save a document for a prompt (`data` is base64) into the server's attachment folder, under today's date,
+   * never overwriting. Acks `{ path }`, the absolute path to name in the prompt.
+   */
+  | { name: "saveAttachment"; fileName: string; data: string };
 
 /** File types `sessionFile` serves, by extension. */
 export const SESSION_VIDEO_TYPES: Readonly<Record<string, string>> = {
@@ -210,6 +281,8 @@ export interface ServerCapabilities {
   permissionModes?: SessionPermissionMode[];
   /** The server has sessions, but this connection did not present the token, so they are hidden from it. */
   locked?: boolean;
+  /** Folder new sessions start in when none is given (server --workdir). */
+  workdir?: string;
 }
 
 export type ClientMessage =

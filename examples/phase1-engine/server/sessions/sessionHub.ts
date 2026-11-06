@@ -3,11 +3,12 @@
 import { randomUUID } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
-import { MAX_PROMPT_IMAGES, MAX_PROMPT_IMAGE_BASE64, PROMPT_IMAGE_TYPES } from "../../src/integrations/AgentBackend.ts";
-import type { PermissionRequestInfo, PromptImage, ServerMessage, SessionCommand, SessionInfo, SessionItem, SessionPermissionMode } from "../../src/integrations/AgentBackend.ts";
+import { MAX_PROMPT_IMAGES, MAX_PROMPT_IMAGE_BASE64, PROMPT_IMAGE_TYPES, SESSION_EFFORTS, SESSION_MODELS } from "../../src/integrations/AgentBackend.ts";
+import type { PermissionRequestInfo, PromptImage, ServerMessage, SessionCommand, SessionEffort, SessionInfo, SessionItem, SessionModel, SessionPermissionMode } from "../../src/integrations/AgentBackend.ts";
 import type { Runner, RunHandle } from "./claudeRunner.ts";
 import { TranscriptTail, isAllowedTranscript, projectsRoot, toolSummary } from "./transcript.ts";
 import { FileTickets, resolveSessionVideo } from "./sessionFiles.ts";
+import { defaultAttachDir, saveAttachment } from "./attachments.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { slashCommand, typedText } from "../../src/live/promptText.ts";
 
@@ -42,6 +43,8 @@ export interface SessionHubOptions {
   startTimeoutMs?: number;
   /** Drop the parsed items of a session nobody has watched for this long (re-read from disk on reopen). Default 5 min. */
   idleEvictMs?: number;
+  /** Folder new sessions start in when the client names none (Tổ giúp việc: the Brainstorm vault). */
+  workdir?: string;
   /** Forget ended or idle sessions with no activity for this long (they are rediscovered if they change). Default 48 h. */
   forgetAfterMs?: number;
   /**
@@ -54,6 +57,8 @@ export interface SessionHubOptions {
    * back (e.g. ~/.aaw/hidden-sessions.json). Absent: remembered until the server stops.
    */
   hiddenFile?: string;
+  /** Where documents attached in the web UI are saved. Default: see `defaultAttachDir`. */
+  attachDir?: string;
 }
 
 /** A removed session is remembered this long; past it, discovery (24 h by default) would not list it anyway. */
@@ -152,10 +157,26 @@ const SESSION_COMMANDS: ReadonlySet<string> = new Set([
   "interruptSession",
   "setPermissionMode",
   "removeSession",
+  "endSession",
   "sessionImage",
   "sessionFile",
+  "saveAttachment",
 ]);
 const SAFE_MODES: SessionPermissionMode[] = ["default", "acceptEdits", "auto", "plan", "dontAsk"];
+
+/** A model alias from the web UI (untrusted): one of SESSION_MODELS, or absent. */
+export function checkModel(v: unknown): SessionModel | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v === "string" && (SESSION_MODELS as readonly string[]).includes(v)) return v as SessionModel;
+  throw new Error(`Unknown model. Choose one of: ${SESSION_MODELS.join(", ")}.`);
+}
+
+/** An effort level from the web UI (untrusted): one of SESSION_EFFORTS, or absent. */
+export function checkEffort(v: unknown): SessionEffort | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v === "string" && (SESSION_EFFORTS as readonly string[]).includes(v)) return v as SessionEffort;
+  throw new Error(`Unknown effort. Choose one of: ${SESSION_EFFORTS.join(", ")}.`);
+}
 
 export function isSessionCommand(c: { name: string }): c is SessionCommand {
   return SESSION_COMMANDS.has(c.name);
@@ -208,6 +229,7 @@ export class SessionHub {
   private root: string;
   private runner: Runner | undefined;
   readonly permissionModes: SessionPermissionMode[];
+  readonly workdir: string | undefined;
   private defaultMode: SessionPermissionMode;
   private startTimeoutMs: number;
   private discoverWithinMs: number;
@@ -219,10 +241,12 @@ export class SessionHub {
   private hidden = new Map<string, number>();
   private hiddenFile: string | undefined;
   private files = new FileTickets();
+  readonly attachDir: string;
 
   constructor(options: SessionHubOptions = {}) {
     this.root = options.root ?? projectsRoot();
     this.runner = options.runner;
+    this.workdir = options.workdir && isAbsolute(options.workdir) && existsSync(options.workdir) ? options.workdir : undefined;
     this.permissionModes = options.allowBypass ? [...SAFE_MODES, "bypassPermissions"] : [...SAFE_MODES];
     this.defaultMode = this.checkMode(options.defaultPermissionMode ?? "default");
     this.startTimeoutMs = options.startTimeoutMs ?? 90_000;
@@ -231,6 +255,7 @@ export class SessionHub {
     this.idleEvictMs = options.idleEvictMs ?? 5 * 60 * 1000;
     this.forgetAfterMs = options.forgetAfterMs ?? 48 * 60 * 60 * 1000;
     this.hiddenFile = options.hiddenFile;
+    this.attachDir = options.attachDir ?? defaultAttachDir(this.workdir);
     this.loadHidden();
     this.gcTimer = setInterval(() => this.collect(), 60_000);
     if (this.discoverWithinMs > 0) {
@@ -388,7 +413,7 @@ export class SessionHub {
         return undefined;
       }
       case "sendPrompt":
-        return this.sendPrompt(conn, c.text, checkPromptImages(c.images), c.sessionId, c.cwd, c.permissionMode);
+        return this.sendPrompt(conn, c.text, checkPromptImages(c.images), c.sessionId, c.cwd, c.permissionMode, checkModel(c.model), checkEffort(c.effort));
       case "sessionImage": {
         const s = this.sessions.get(c.sessionId);
         if (!s || !s.subscribers.has(conn)) throw new Error("Open the session first.");
@@ -401,6 +426,10 @@ export class SessionHub {
         if (!s || !s.subscribers.has(conn)) throw new Error("Open the session first.");
         const video = resolveSessionVideo(s.info.cwd, String(c.path ?? ""));
         return { url: this.files.issue(video, conn), mediaType: video.mediaType, size: video.size, name: video.name };
+      }
+      case "saveAttachment": {
+        this.requireControl();
+        return { path: saveAttachment(this.attachDir, c.fileName, c.data) };
       }
       case "setPermissionMode": {
         this.requireControl();
@@ -431,6 +460,10 @@ export class SessionHub {
       case "removeSession":
         this.remove(c.sessionId);
         return undefined;
+      case "endSession":
+        this.requireControl();
+        this.end(c.sessionId);
+        return undefined;
     }
   }
 
@@ -450,6 +483,28 @@ export class SessionHub {
       this.refreshBranch(s);
     }
     return [...this.sessions.values()].map((s) => ({ ...s.info })).sort((a, b) => b.lastActivity - a.lastActivity);
+  }
+
+  /**
+   * Close the Claude Code process of a session run from the web UI. The session stays in the list as ended; a new
+   * prompt to it resumes the same conversation in a new process. Pending permission asks of it are denied.
+   */
+  end(sessionId: string): void {
+    const s = this.sessions.get(sessionId);
+    if (!s) throw new Error("Unknown session.");
+    if (!s.run) throw new Error("Only sessions running from this web UI can be closed here.");
+    for (const [id, p] of this.permissions) {
+      if (p.info.sessionId !== sessionId) continue;
+      this.permissions.delete(id);
+      p.resolve(false);
+      this.io?.broadcast({ type: "permissionResolved", requestId: id, allowed: false });
+    }
+    const run = s.run;
+    s.run = undefined;
+    s.info.status = "ended";
+    s.info.lastActivity = Date.now();
+    run.close();
+    this.broadcastSessions();
   }
 
   /** Take a finished session off the list (the transcript is left alone). */
@@ -514,7 +569,7 @@ export class SessionHub {
     if (!this.runner) throw new Error("Control is off. Start the server with --control to send prompts from the web UI.");
   }
 
-  private async sendPrompt(conn: Conn, text: string, images: PromptImage[], sessionId?: string, cwd?: string, permissionMode?: SessionPermissionMode): Promise<{ sessionId: string; forked: boolean }> {
+  private async sendPrompt(conn: Conn, text: string, images: PromptImage[], sessionId?: string, cwd?: string, permissionMode?: SessionPermissionMode, model?: SessionModel, effort?: SessionEffort): Promise<{ sessionId: string; forked: boolean }> {
     this.requireControl();
     if (typeof text !== "string") throw new Error("`text` must be a string.");
     if (!text.trim() && images.length === 0) throw new Error("The prompt is empty.");
@@ -528,6 +583,10 @@ export class SessionHub {
           await s.run.setPermissionMode(mode);
           s.info.permissionMode = mode;
         }
+        if (model && model !== s.info.model) {
+          await s.run.setModel(model);
+          s.info.model = model;
+        }
         s.run.push(text, images);
         s.info.status = "running";
         this.broadcastSessions();
@@ -536,18 +595,19 @@ export class SessionHub {
       // A session still open in a terminal must not get a second writer: continue it in a fork.
       const fork = !(s.info.status === "ended" || s.info.owner === "web");
       if (!s.info.cwd || !existsSync(s.info.cwd)) throw new Error("The session's working directory no longer exists.");
-      const id = await this.start(conn, { cwd: s.info.cwd, text, images, resume: sessionId, fork, title: s.info.title, mode: mode ?? s.info.permissionMode ?? this.defaultMode });
+      const id = await this.start(conn, { cwd: s.info.cwd, text, images, resume: sessionId, fork, title: s.info.title, mode: mode ?? s.info.permissionMode ?? this.defaultMode, model: model ?? s.info.model, effort: effort ?? s.info.effort });
       return { sessionId: id, forked: fork };
     }
 
+    cwd = cwd?.trim() || this.workdir;
     if (!cwd || !isAbsolute(cwd) || !existsSync(cwd) || !statSync(cwd).isDirectory()) {
       throw new Error("A new session needs `cwd`: an absolute path to an existing directory.");
     }
-    const id = await this.start(conn, { cwd, text, images, fork: false, title: firstLine(text) || (images.length === 1 ? "Image" : `${images.length} images`), mode: mode ?? this.defaultMode });
+    const id = await this.start(conn, { cwd, text, images, fork: false, title: firstLine(text) || (images.length === 1 ? "Image" : `${images.length} images`), mode: mode ?? this.defaultMode, model, effort });
     return { sessionId: id, forked: false };
   }
 
-  private start(conn: Conn, a: { cwd: string; text: string; images: PromptImage[]; resume?: string; fork: boolean; title: string; mode: SessionPermissionMode }): Promise<string> {
+  private start(conn: Conn, a: { cwd: string; text: string; images: PromptImage[]; resume?: string; fork: boolean; title: string; mode: SessionPermissionMode; model?: SessionModel; effort?: SessionEffort }): Promise<string> {
     return new Promise((resolve, reject) => {
       let session: Session | null = null;
       const timeout = setTimeout(() => {
@@ -563,6 +623,8 @@ export class SessionHub {
         ...(a.resume ? { resume: a.resume } : {}),
         fork: a.fork,
         permissionMode: a.mode,
+        ...(a.model ? { model: a.model } : {}),
+        ...(a.effort ? { effort: a.effort } : {}),
         onSession: (id) => {
           clearTimeout(timeout);
           if (session && session.info.sessionId !== id) {
@@ -573,6 +635,8 @@ export class SessionHub {
             next.run = handle;
             next.info.owner = "web";
             next.info.permissionMode = old.info.permissionMode ?? a.mode;
+            next.info.model = old.info.model ?? a.model;
+            next.info.effort = old.info.effort ?? a.effort;
             next.info.status = "running";
             next.info.title = "New conversation";
             for (const c of old.subscribers) next.subscribers.add(c);
@@ -590,6 +654,8 @@ export class SessionHub {
           session.run = handle;
           session.info.owner = "web";
           session.info.permissionMode = a.mode;
+          session.info.model = a.model;
+          session.info.effort = a.effort;
           session.info.status = "running";
           if (session.info.title.startsWith("Session ")) session.info.title = a.title || session.info.title;
           session.subscribers.add(conn);

@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import { floorTexture } from "@/world/proceduralTextures";
 
 /**
  * Lazily created, page-lifetime pools of geometries and materials (§6.8). Meshes receive these through the
@@ -51,15 +50,9 @@ export const geometries = {
 };
 
 export const materials = {
-  floor: () =>
-    sharedMaterial("floor", () => {
-      const map = floorTexture();
-      // Four 1.5 m tiles per texture repeat, across the 30 × 21 m floor.
-      map.repeat.set(30 / 6, 21 / 6);
-      return new THREE.MeshStandardMaterial({ map, color: "#ffffff", roughness: 0.42, metalness: 0.08, envMapIntensity: 0.7 });
-    }),
-  wall: () => sharedMaterial("wall", () => new THREE.MeshStandardMaterial({ color: "#141a26", roughness: 0.88, metalness: 0.02 })),
-  wallTrim: () => sharedMaterial("wallTrim", () => new THREE.MeshStandardMaterial({ color: "#0b0f17", roughness: 0.55, metalness: 0.4 })),
+  floor: () => sharedMaterial("floor", () => new THREE.MeshStandardMaterial({ color: "#f7f8fd", roughness: 0.9, metalness: 0 })),
+  wall: () => sharedMaterial("wall", () => new THREE.MeshStandardMaterial({ color: "#f2f4fb", roughness: 0.9, metalness: 0 })),
+  wallTrim: () => sharedMaterial("wallTrim", () => new THREE.MeshStandardMaterial({ color: "#2a3590", roughness: 0.7, metalness: 0 })),
   glass: () =>
     sharedMaterial(
       "glass",
@@ -91,20 +84,20 @@ export const materials = {
           side: THREE.DoubleSide,
         }),
     ),
-  metal: () => sharedMaterial("metal", () => new THREE.MeshStandardMaterial({ color: "#8b97ab", roughness: 0.32, metalness: 0.75 })),
-  darkMetal: () => sharedMaterial("darkMetal", () => new THREE.MeshStandardMaterial({ color: "#232b38", roughness: 0.4, metalness: 0.6 })),
+  metal: () => sharedMaterial("metal", () => new THREE.MeshStandardMaterial({ color: "#c3cae6", roughness: 0.6, metalness: 0.1 })),
+  darkMetal: () => sharedMaterial("darkMetal", () => new THREE.MeshStandardMaterial({ color: "#3a47a8", roughness: 0.6, metalness: 0.1 })),
   ceramic: () => sharedMaterial("ceramic", () => new THREE.MeshStandardMaterial({ color: "#d8d2c6", roughness: 0.55, metalness: 0 })),
-  joint: () => sharedMaterial("joint", () => new THREE.MeshStandardMaterial({ color: "#2b3343", roughness: 0.6, metalness: 0.3 })),
-  desk: () => sharedMaterial("desk", () => new THREE.MeshStandardMaterial({ color: "#2b3447", roughness: 0.38, metalness: 0.18 })),
-  wood: () => sharedMaterial("wood", () => new THREE.MeshStandardMaterial({ color: "#6b4f3a", roughness: 0.55, metalness: 0.05 })),
-  fabric: () => sharedMaterial("fabric", () => new THREE.MeshStandardMaterial({ color: "#2f3a52", roughness: 0.92, metalness: 0 })),
-  fabricWarm: () => sharedMaterial("fabricWarm", () => new THREE.MeshStandardMaterial({ color: "#5a4a63", roughness: 0.9, metalness: 0 })),
-  plastic: () => sharedMaterial("plastic", () => new THREE.MeshStandardMaterial({ color: "#11161f", roughness: 0.5, metalness: 0.2 })),
-  screenOff: () => sharedMaterial("screenOff", () => new THREE.MeshStandardMaterial({ color: "#05080e", roughness: 0.25, metalness: 0.3 })),
+  joint: () => sharedMaterial("joint", () => new THREE.MeshStandardMaterial({ color: "#46529e", roughness: 0.6, metalness: 0.1 })),
+  desk: () => sharedMaterial("desk", () => new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.7, metalness: 0 })),
+  wood: () => sharedMaterial("wood", () => new THREE.MeshStandardMaterial({ color: "#e0a868", roughness: 0.7, metalness: 0 })),
+  fabric: () => sharedMaterial("fabric", () => new THREE.MeshStandardMaterial({ color: "#6f7fd6", roughness: 0.92, metalness: 0 })),
+  fabricWarm: () => sharedMaterial("fabricWarm", () => new THREE.MeshStandardMaterial({ color: "#9a6fd0", roughness: 0.9, metalness: 0 })),
+  plastic: () => sharedMaterial("plastic", () => new THREE.MeshStandardMaterial({ color: "#2d3a9c", roughness: 0.6, metalness: 0 })),
+  screenOff: () => sharedMaterial("screenOff", () => new THREE.MeshStandardMaterial({ color: "#1d2a7a", roughness: 0.4, metalness: 0 })),
   leaf: () => sharedMaterial("leaf", () => new THREE.MeshStandardMaterial({ color: "#2f6b4c", roughness: 0.78, metalness: 0 })),
   leafDark: () => sharedMaterial("leafDark", () => new THREE.MeshStandardMaterial({ color: "#245a40", roughness: 0.8, metalness: 0 })),
   soil: () => sharedMaterial("soil", () => new THREE.MeshStandardMaterial({ color: "#2a2018", roughness: 1, metalness: 0 })),
-  whiteboard: () => sharedMaterial("whiteboard", () => new THREE.MeshStandardMaterial({ color: "#e6e9ef", roughness: 0.35, metalness: 0 })),
+  whiteboard: () => sharedMaterial("whiteboard", () => new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5, metalness: 0 })),
   /** Instanced pieces that carry per-instance colour (`setColorAt`). */
   instanceWhite: () => sharedMaterial("instanceWhite", () => new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.7, metalness: 0 })),
 };

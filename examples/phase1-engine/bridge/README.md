@@ -3,7 +3,7 @@
 Cho thế giới 3D phản chiếu một phiên Claude Code thật. Không có gì được mô phỏng: mỗi robot chỉ di chuyển khi một hook báo rằng Claude vừa làm đúng loại việc mà robot đó đại diện.
 
 ```
-Claude Code ──hook (async)──▶ forward-hook.sh ──POST /hook──▶ world server ──WebSocket──▶ viewer 3D
+Claude Code ──hook (async)──▶ forward-hook.mjs ──POST /hook──▶ world server ──WebSocket──▶ viewer 3D
 ```
 
 ## Chạy thử không cần Claude Code
@@ -110,7 +110,7 @@ Các điểm cần biết:
 ## Vì sao cầu nối không làm phiền phiên làm việc
 
 - Mọi hook đều là `"type": "command"` với `"async": true`, nên Claude Code chạy chúng ở nền và không bao giờ phải chờ.
-- `forward-hook.sh` không in gì ra stdout hay stderr, và luôn thoát với mã 0. Với Claude Code, stdout của một số hook (ví dụ `UserPromptSubmit`) sẽ được đưa vào context, còn mã thoát 2 có thể chặn một thao tác. Cầu nối tránh cả hai.
+- `forward-hook.mjs` (và bản cũ `forward-hook.sh`) không in gì ra stdout hay stderr, và luôn thoát với mã 0. Bản `.mjs` chỉ cần Node, không cần Git Bash hay curl. Với Claude Code, stdout của một số hook (ví dụ `UserPromptSubmit`) sẽ được đưa vào context, còn mã thoát 2 có thể chặn một thao tác. Cầu nối tránh cả hai.
 - Khi server không chạy, `curl` hết thời gian chờ sau tối đa 2 giây, script vẫn thoát êm.
 - Server luôn trả `204` với body rỗng, kể cả khi payload hỏng.
 

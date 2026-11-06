@@ -1,0 +1,527 @@
+/* The org chart (sơ đồ): a node-editor canvas, dark on purpose (Việt approved this look on 05/11/2026).
+   Everything is scoped under .ob so it cannot touch the light "blueprint" office around it. */
+.ob {
+  --ob-bg: #1a2442;
+  --ob-canvas: #202d52;
+  --ob-dots: #3a4a78;
+  --ob-card: #27355c;
+  --ob-card-2: #2e3e68;
+  --ob-edge: #4a5a88;
+  --ob-line: #3a4a74;
+  --ob-text: #dfe5f3;
+  --ob-text-2: #a0abc6;
+  --ob-text-3: #8794b6;
+  --ob-run: #5fd4ff;
+  --ob-ret: #5ee39a;
+  --ob-warn: #ffb547;
+  --ob-bad: #ff6464;
+  color: var(--ob-text);
+  color-scheme: dark;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ob *,
+.ob *::before,
+.ob *::after {
+  box-sizing: border-box;
+}
+
+/* The standalone page: its own scrolling surface (the app keeps body overflow hidden). */
+.ob-page {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background:
+    radial-gradient(900px 500px at 15% 0%, #2a3a6e, transparent 70%),
+    radial-gradient(900px 600px at 100% 100%, #33285e, transparent 70%),
+    var(--ob-bg);
+  padding-block: max(12px, env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(14px, env(safe-area-inset-left, 0px));
+  padding-right: max(14px, env(safe-area-inset-right, 0px));
+}
+.ob-wrap {
+  max-width: 1320px;
+  min-height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ob-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+}
+.ob-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.ob-brand h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.ob-power {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--ob-text-3);
+}
+.ob-power.open {
+  background: var(--ob-ret);
+  box-shadow: 0 0 8px var(--ob-ret);
+}
+.ob-power.bad {
+  background: var(--ob-bad);
+  box-shadow: 0 0 8px var(--ob-bad);
+}
+.ob-conn {
+  font: 400 11px var(--font-mono);
+  color: var(--ob-text-3);
+  white-space: nowrap;
+}
+.ob-meters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ob-meter {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 12px;
+  background: var(--ob-card);
+  border: 1px solid var(--ob-line);
+  border-radius: 8px;
+}
+.ob-meter b {
+  font: 600 17px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ob-text-3);
+  min-width: 1.4ch;
+  text-align: right;
+}
+.ob-meter span {
+  font-size: 11.5px;
+  color: var(--ob-text-2);
+}
+.ob-m-on b:not(.zero) {
+  color: var(--ob-run);
+}
+.ob-m-wait b:not(.zero) {
+  color: var(--ob-warn);
+}
+.ob-m-err b:not(.zero) {
+  color: var(--ob-bad);
+}
+
+.ob-board {
+  flex: 1 1 auto;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--ob-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--ob-canvas);
+  min-width: 0;
+}
+.ob-canvas {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--ob-canvas);
+  background-image:
+    radial-gradient(circle, var(--ob-dots) 1.1px, transparent 1.4px),
+    radial-gradient(700px 420px at 0% 0%, rgba(45, 212, 191, 0.1), transparent 70%),
+    radial-gradient(700px 480px at 100% 100%, rgba(167, 139, 250, 0.14), transparent 70%),
+    radial-gradient(600px 400px at 70% 10%, rgba(96, 165, 250, 0.1), transparent 70%);
+  background-size: 20px 20px, auto, auto, auto;
+}
+.ob-board .ob-canvas {
+  flex: 1 1 auto;
+}
+/* The office corner: the canvas fills its slot and the stage fits inside both ways. */
+.ob-compact {
+  height: 100%;
+  border-radius: 3px;
+  border: 1px solid var(--ob-line);
+}
+.ob-compact .ob-canvas {
+  height: 100%;
+}
+.ob-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1100px;
+  transform-origin: 0 0;
+}
+.ob-wires {
+  position: absolute;
+  inset: 0;
+  width: 1100px;
+  overflow: visible;
+}
+.ob-note {
+  position: absolute;
+  left: 470px;
+  width: 600px;
+  font-size: 13px;
+  color: var(--ob-text-2);
+}
+
+.ob-group {
+  position: absolute;
+  border: 1px dashed color-mix(in srgb, var(--acc) 28%, transparent);
+  background: color-mix(in srgb, var(--acc) 5%, transparent);
+  border-radius: 10px;
+}
+.ob-group > span {
+  position: absolute;
+  left: 12px;
+  top: 6px;
+  font: 600 10px var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--acc) 80%, #8893ad);
+}
+.ob-group.busy {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--acc) 60%, transparent);
+  background: color-mix(in srgb, var(--acc) 9%, transparent);
+}
+.ob-group.busy > span {
+  color: var(--acc);
+}
+
+.ob-card {
+  position: absolute;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 8px;
+  background: linear-gradient(180deg, var(--ob-card-2), var(--ob-card));
+  border: 1.5px solid color-mix(in srgb, var(--acc) 30%, #34405e);
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.ob-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 18%, #1a2440);
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, transparent);
+}
+.ob-ic svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ob-tx {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.ob-tx b {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ob-tx span {
+  font: 400 10.5px var(--font-mono);
+  color: var(--ob-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ob-port {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #3a4766;
+  border: 2px solid var(--ob-canvas);
+  top: 50%;
+  margin-top: -4.5px;
+}
+.ob-port.in {
+  left: -5.5px;
+}
+.ob-port.out {
+  right: -5.5px;
+}
+.ob-port.down,
+.ob-port.up {
+  left: 50%;
+  margin: 0 0 0 -4.5px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+.ob-port.down {
+  top: auto;
+  bottom: -5.5px;
+}
+.ob-port.up {
+  top: -5.5px;
+}
+.ob-mark {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: none;
+  place-items: center;
+  font: 700 11px var(--font-sans);
+  font-style: normal;
+  color: #0b111c;
+}
+.ob-card.on {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 18%, transparent), 0 0 22px color-mix(in srgb, var(--acc) 40%, transparent);
+}
+.ob-card.on .ob-ic {
+  color: #0b111c;
+  background: var(--acc);
+  border-color: var(--acc);
+}
+.ob-card.on .ob-tx span {
+  color: var(--acc);
+}
+.ob-card.on::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1.5px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--acc), transparent);
+  background-size: 200% 100%;
+  animation: ob-scan 1.4s linear infinite;
+}
+.ob-card.wait {
+  border-color: var(--ob-warn);
+  box-shadow: 0 0 16px rgba(255, 181, 71, 0.25);
+  animation: ob-pulse 1s ease-in-out infinite alternate;
+}
+.ob-card.wait .ob-tx span {
+  color: var(--ob-warn);
+}
+.ob-card.wait .ob-mark {
+  display: grid;
+  background: var(--ob-warn);
+}
+.ob-card.err {
+  border-color: var(--ob-bad);
+  box-shadow: 0 0 16px rgba(255, 100, 100, 0.25);
+}
+.ob-card.err .ob-tx span {
+  color: var(--ob-bad);
+}
+.ob-card.err .ob-mark {
+  display: grid;
+  background: var(--ob-bad);
+}
+.ob-card.done {
+  border-color: var(--ob-ret);
+}
+.ob-card.done .ob-tx span {
+  color: var(--ob-ret);
+}
+.ob-card.done .ob-mark {
+  display: grid;
+  background: var(--ob-ret);
+}
+
+.ob-dot {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 600 10.5px var(--font-mono);
+  background: color-mix(in srgb, var(--acc) 10%, var(--ob-card));
+  border: 1.5px solid color-mix(in srgb, var(--acc) 50%, transparent);
+  color: color-mix(in srgb, var(--acc) 75%, #8893ad);
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+.ob-dlabel {
+  position: absolute;
+  font-size: 11px;
+  color: var(--ob-text-3);
+  white-space: nowrap;
+  line-height: 18px;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ob-dot.on {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #08121e;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--acc) 70%, transparent);
+}
+.ob-dot.wait {
+  background: var(--ob-warn);
+  border-color: var(--ob-warn);
+  color: #1c1205;
+  box-shadow: 0 0 12px rgba(255, 181, 71, 0.5);
+  animation: ob-pulse 1s ease-in-out infinite alternate;
+}
+.ob-dot.err {
+  background: var(--ob-bad);
+  border-color: var(--ob-bad);
+  color: #1c0606;
+}
+.ob-dot.done {
+  background: var(--ob-ret);
+  border-color: var(--ob-ret);
+  color: #06180e;
+}
+.ob-dlabel.on {
+  color: var(--acc);
+}
+.ob-dlabel.wait {
+  color: var(--ob-warn);
+}
+.ob-dlabel.err {
+  color: var(--ob-bad);
+}
+.ob-dlabel.done {
+  color: var(--ob-ret);
+}
+
+.ob-edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--acc) 32%, var(--ob-edge));
+  stroke-width: 2;
+  transition: stroke 0.3s;
+}
+.ob-edge.sub {
+  stroke-dasharray: 4 5;
+}
+.ob-edge.live {
+  stroke: color-mix(in srgb, var(--acc) 75%, transparent);
+}
+.ob-flow {
+  fill: none;
+  stroke: var(--acc);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.ob-flow.back {
+  stroke: var(--ob-ret);
+}
+@keyframes ob-scan {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes ob-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob-card.on::after,
+  .ob-card.wait,
+  .ob-dot.wait {
+    animation: none;
+  }
+}
+
+.ob-logbox {
+  border: 1px solid var(--ob-line);
+  border-radius: 12px;
+  background: var(--ob-card);
+  padding: 10px 14px 12px;
+}
+.ob-logbox h2 {
+  margin: 0 0 6px;
+  font: 600 10.5px var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ob-text-3);
+}
+.ob-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 112px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12.5px;
+}
+.ob-log li {
+  display: grid;
+  grid-template-columns: 8px auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  color: var(--ob-text-2);
+}
+.ob-log li i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ob-run);
+  align-self: center;
+}
+.ob-log li.k-ret i {
+  background: var(--ob-ret);
+}
+.ob-log li.k-bad i {
+  background: var(--ob-bad);
+}
+.ob-log li.k-info i {
+  background: var(--ob-text-3);
+}
+.ob-log time {
+  font: 400 11px var(--font-mono);
+  color: var(--ob-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.ob-log span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ob-empty {
+  color: var(--ob-text-3);
+  font-size: 12.5px;
+}
+.ob-wait-msg {
+  margin: 40px auto;
+  max-width: 520px;
+  text-align: center;
+  color: var(--ob-text-2);
+  font-size: 13.5px;
+}

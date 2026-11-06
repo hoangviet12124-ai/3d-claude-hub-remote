@@ -1,38 +1,38 @@
 import type { CreateTaskInput } from "./taskTypes.ts";
 
-export const HOTFIX_TITLE = "Patch session token leak in password-reset flow";
-export const MIGRATION_TITLE = "Migrate legacy billing cron to event-driven pipeline";
+// Vụ việc mẫu cho chế độ mô phỏng của Tổ giúp việc. Tên gói thầu, dự án là ví dụ, không phải hồ sơ thật.
+// Giai đoạn 1 chỉ phòng KT XDCB hoạt động, nên mọi vụ việc mẫu đều thuộc mảng kiểm toán XDCB.
+export const HOTFIX_TITLE = "Kiểm tra hồ sơ lựa chọn nhà thầu gói thầu cải tạo sân đỗ (ví dụ)";
+export const MIGRATION_TITLE = "Rà soát hồ sơ quyết toán hợp đồng bảo trì đường lăn (ví dụ)";
 
 export const TASK_BACKLOG: CreateTaskInput[] = [
-  { title: HOTFIX_TITLE, description: "Reset links reuse the session token in the URL. Issue a single-use reset token and invalidate sessions on change.", priority: "critical", script: { qaFailsOn: [1], reviewChangesOn: [2] } },
-  { title: MIGRATION_TITLE, description: "The nightly billing cron double-charges on retries. Move to events with an outbox and reconcile totals.", priority: "high", script: { qaFailsOn: [1, 2, 3] } },
-  { title: "Fix memory leak in the image-processing worker", description: "Worker RSS grows until OOM after ~6 hours. Find the retaining reference and add a regression benchmark.", priority: "critical" },
-  { title: "Add Stripe usage-based billing for API calls", description: "Report metered usage to Stripe hourly and show the running total on the billing page.", priority: "high" },
-  { title: "Full-text search for project documents", description: "Index titles and bodies, support filters by owner and date, and typo-tolerant queries.", priority: "medium" },
-  { title: "Live presence indicators in shared editor", description: "Show who is viewing a document with avatars and live cursors over WebSocket.", priority: "medium" },
-  { title: "Weekly email digest of mentions", description: "Aggregate mentions and assignments into one weekly email with unsubscribe.", priority: "low" },
-  { title: "Export audit log to CSV and Parquet", description: "Admins can export filtered audit events; large exports run in the background.", priority: "low" },
-  { title: "Canary deploys for the API on Kubernetes", description: "Route 5% of traffic to the new version and roll back automatically on error spikes.", priority: "high" },
-  { title: "Offline mode for the mobile field app", description: "Queue edits while offline and sync with conflict resolution when back online.", priority: "medium" },
-  { title: "Localise onboarding into Spanish and Arabic", description: "Extract strings, add ICU plurals and support right-to-left layout.", priority: "medium" },
-  { title: "Summarise support tickets with an LLM", description: "Generate a three-line summary per ticket with redaction and caching.", priority: "medium" },
-  { title: "Per-key rate limiting for the public API", description: "Token-bucket limits per API key with Retry-After headers.", priority: "high" },
-  { title: "SSO login via OIDC for enterprise workspaces", description: "Let workspace admins configure an OIDC provider and enforce SSO.", priority: "high" },
-  { title: "CRUD endpoints for team webhooks", description: "Create, list, update and delete webhook subscriptions with validation and pagination.", priority: "medium" },
-  { title: "Usage dashboard component for admins", description: "Charts of active users and API calls with empty and loading states.", priority: "low" },
-  { title: "Reduce p95 latency of the feed endpoint", description: "Profile the feed query, remove the N+1 path and add caching.", priority: "high" },
-  { title: "Archive inactive workspaces after 12 months", description: "Notify owners, then archive and allow restore within 30 days.", priority: "low" },
+  { title: HOTFIX_TITLE, description: "Đối chiếu hồ sơ mời thầu, đánh giá hồ sơ dự thầu và kết quả lựa chọn nhà thầu với quy định còn hiệu lực tại ngày thực hiện thủ tục.", priority: "critical", script: { qaFailsOn: [1] } },
+  { title: MIGRATION_TITLE, description: "Kiểm tra khối lượng, đơn giá và hồ sơ nghiệm thu trong bộ hồ sơ quyết toán; lập bảng dữ kiện có số trang.", priority: "high", script: { qaFailsOn: [1, 2, 3] } },
+  { title: "Kiểm tra hồ sơ dự toán gói thầu sửa chữa nhà ga (ví dụ)", description: "Rà soát căn cứ lập dự toán, định mức và đơn giá áp dụng.", priority: "high" },
+  { title: "Rà soát kế hoạch bảo trì kết cấu hạ tầng năm sau (ví dụ)", description: "Đối chiếu kế hoạch bảo trì với quy trình bảo trì và hiện trạng công trình.", priority: "medium" },
+  { title: "Kiểm tra hồ sơ mua sắm vật tư bảo trì sân bay (ví dụ)", description: "Đối chiếu trình tự mua sắm và hồ sơ nghiệm thu vật tư với kế hoạch bảo trì.", priority: "medium" },
+  { title: "Tra cứu văn bản hướng dẫn về chỉ định thầu (ví dụ)", description: "Lập danh sách văn bản còn hiệu lực và điều khoản liên quan.", priority: "low" },
+  { title: "Kiểm tra hồ sơ thanh toán hợp đồng tư vấn giám sát (ví dụ)", description: "Đối chiếu giá trị đề nghị thanh toán với hợp đồng và biên bản nghiệm thu.", priority: "medium" },
+  { title: "Tổng hợp phát hiện kiểm toán quý (ví dụ)", description: "Gom các phát hiện đã chốt trong Lịch sử làm việc thành bảng tổng hợp.", priority: "low" },
+  { title: "Kiểm tra đơn giá vật liệu trong dự toán nâng cấp đường cất hạ cánh (ví dụ)", description: "Đối chiếu đơn giá vật liệu với công bố giá địa phương tại thời điểm lập dự toán.", priority: "high" },
+  { title: "Rà soát hồ sơ mua sắm thiết bị phòng cháy nhà ga (ví dụ)", description: "Kiểm tra trình tự mua sắm, dự toán gói thầu và kết quả lựa chọn nhà thầu.", priority: "medium" },
+  { title: "Kiểm tra nhật ký bảo trì hệ thống đèn tiếp cận (ví dụ)", description: "Đối chiếu nhật ký bảo trì với kế hoạch và quy trình bảo trì được duyệt.", priority: "medium" },
+  { title: "Rà soát điều khoản thanh toán trong hợp đồng thi công nhà ga (ví dụ)", description: "Đối chiếu điều khoản tạm ứng, thanh toán, quyết toán với hồ sơ thực tế.", priority: "low" },
+  { title: "Kiểm tra hồ sơ phát sinh khối lượng gói thầu xây lắp nhà để xe (ví dụ)", description: "Xác định căn cứ, thẩm quyền phê duyệt và cách tính giá trị khối lượng phát sinh.", priority: "high" },
+  { title: "Rà soát hồ sơ quyết toán dự án hoàn thành hạ tầng kỹ thuật (ví dụ)", description: "Kiểm tra thành phần hồ sơ quyết toán và đối chiếu giá trị với hợp đồng.", priority: "medium" },
+  { title: "Tổng hợp phát hiện lặp lại từ các cuộc kiểm toán năm trước (ví dụ)", description: "Tìm phát hiện xuất hiện nhiều lần để đề xuất rút kinh nghiệm.", priority: "low" },
+  { title: "Kiểm tra định mức áp dụng cho công tác sửa chữa mặt đường (ví dụ)", description: "Đối chiếu mã định mức trong dự toán với nội dung công việc thực tế.", priority: "medium" },
 ];
 
 const SPRINT_TITLES = [
   HOTFIX_TITLE,
   MIGRATION_TITLE,
-  "Fix memory leak in the image-processing worker",
-  "Add Stripe usage-based billing for API calls",
-  "Full-text search for project documents",
-  "Per-key rate limiting for the public API",
-  "Live presence indicators in shared editor",
-  "Export audit log to CSV and Parquet",
+  "Kiểm tra hồ sơ dự toán gói thầu sửa chữa nhà ga (ví dụ)",
+  "Rà soát kế hoạch bảo trì kết cấu hạ tầng năm sau (ví dụ)",
+  "Kiểm tra hồ sơ mua sắm vật tư bảo trì sân bay (ví dụ)",
+  "Tra cứu văn bản hướng dẫn về chỉ định thầu (ví dụ)",
+  "Kiểm tra hồ sơ thanh toán hợp đồng tư vấn giám sát (ví dụ)",
+  "Tổng hợp phát hiện kiểm toán quý (ví dụ)",
 ];
 
 export const SPRINT_TASKS: CreateTaskInput[] = SPRINT_TITLES.map((title) => {

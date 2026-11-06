@@ -223,8 +223,8 @@ const BASE_TITLE = document.title;
 let notifyOn = false;
 try { notifyOn = localStorage.getItem("aaw.notify") === "1" && "Notification" in window && Notification.permission === "granted"; } catch {}
 function attentionOf(e) {
-  if (e.agentId === "orion" && e.severity === "warning" && e.message.startsWith("Needs your permission")) return { badge: "⏳ Permission needed", body: e.message };
-  if (e.agentId === "orion" && e.severity === "warning" && e.message.startsWith("Claude Code needs you")) return { badge: "⏳ Needs you", body: e.message };
+  if (e.agentId === "orion" && e.severity === "warning" && /^(Cần anh cấp quyền|Needs your permission)/.test(e.message)) return { badge: "⏳ Cần anh cấp quyền", body: e.message };
+  if (e.agentId === "orion" && e.severity === "warning" && /^(Claude cần anh|Claude Code needs you)/.test(e.message)) return { badge: "⏳ Cần anh", body: e.message };
   if (e.type === "task.completed") return { badge: "✓ Turn ended", body: e.message };
   if (e.type === "task.failed") return { badge: "✗ Stopped", body: e.message };
   return null;

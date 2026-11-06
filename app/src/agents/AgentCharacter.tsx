@@ -25,6 +25,7 @@ import { useRenderCount } from "@/world/renderCounts";
  *   Kai   (engineer)      chunky, full-face visor, over-the-head headset with ear cups and a mic boom
  *   Quinn (QA)            short and stout, barrel body, wrap-around visor, twin sensor stalks
  *   Rex   (reviewer)      tall and narrow, tall head with a brow ledge, a big monocle, collar and bow tie
+ *   Trợ lý (assistant)   small round body, big one-eyed head, antenna and a document backpack
  *
  * Rendering: every robot is a small bone hierarchy (plain Object3Ds, never in the scene) driven by
  * `AgentAnimator`. The visible parts of all six robots are grouped by (geometry, material) into shared
@@ -212,6 +213,20 @@ function roleParts(role: AgentRole, rig: RobotRig): Part[] {
         { g: "cyl", m: "joint", b: "head", p: [0.13, 0.42, 0], r: [0, 0, -0.32], s: [0.026, 0.28, 0.026] },
         { g: "sphere", m: "glow", b: "head", p: [-0.178, 0.56, 0], s: [0.095, 0.095, 0.095], k: 1.1 },
         { g: "sphere", m: "glow", b: "head", p: [0.178, 0.56, 0], s: [0.095, 0.095, 0.095], k: 1.1 },
+      ];
+    case "assistant":
+      // Trợ lý (subagent): nhỏ, thân tròn, đầu to một mắt, ăng-ten, túi đeo lưng đựng tài liệu
+      return [
+        { g: "sphere", m: "shell", b: "spine", p: [0, 0.24, 0], s: [0.44, 0.44, 0.38] },
+        { g: "cyl", m: "paint", b: "spine", p: [0, 0.06, 0], s: [0.36, 0.08, 0.3] },
+        { g: "soft", m: "paint", b: "spine", p: [0, 0.26, -0.2], s: [0.28, 0.28, 0.12] },
+        { g: "box", m: "glow", b: "spine", p: [0, 0.32, -0.262], s: [0.18, 0.025, 0.01], k: 0.8 },
+        { g: "sphere", m: "glow", b: "spine", p: [0, 0.27, 0.19], s: [0.07, 0.07, 0.02], k: 0.8 },
+        { g: "sphere", m: "shell", b: "head", p: [0, 0.17, 0], s: [0.42, 0.38, 0.4] },
+        { g: "cyl", m: "visor", b: "head", p: [0, 0.18, 0.17], r: X90, s: [0.2, 0.06, 0.2] },
+        { g: "cyl", m: "glow", b: "head", p: [0, 0.18, 0.2], r: X90, s: [0.11, 0.01, 0.11], k: 1.3 },
+        { g: "cyl", m: "joint", b: "head", p: [0, 0.42, 0], s: [0.02, 0.16, 0.02] },
+        { g: "sphere", m: "glow", b: "head", p: [0, 0.51, 0], s: [0.07, 0.07, 0.07], k: 1.1 },
       ];
     case "reviewer":
       return [

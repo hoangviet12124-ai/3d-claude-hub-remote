@@ -4,7 +4,7 @@ import { memo } from "react";
 import { ArrowRight } from "lucide-react";
 import { sessionOf } from "@/audio/attention";
 import { ProjectChip, useMultiSession } from "@/components/sessions/sessionUi";
-import { Avatar, Empty, SEVERITY_COLOR, formatClock } from "@/components/ui";
+import { Avatar, Empty, SEVERITY_COLOR, formatWallClock, formatWallFull } from "@/components/ui";
 import type { AgentEvent } from "@/events/eventTypes";
 import { useWorldStore } from "@/state/useWorldStore";
 
@@ -20,7 +20,7 @@ const Row = memo(function Row({ e, compact, showProject }: { e: AgentEvent; comp
   const body = (
     <>
       <span className={`mt-[7px] size-1.5 flex-none rounded-full ${SEVERITY_COLOR[e.severity]}`} aria-label={e.severity} />
-      <span className="w-9 flex-none pt-px font-mono text-[10.5px] tabular-nums leading-5 text-mist-500">{formatClock(e.simTime)}</span>
+      <span className="w-9 flex-none pt-px font-mono text-[10.5px] tabular-nums leading-5 text-mist-500" title={formatWallFull(e.timestamp)}>{formatWallClock(e.timestamp)}</span>
       {e.agentId ? (
         <span className="flex flex-none items-center gap-0.5 pt-0.5">
           <Avatar id={e.agentId} size={16} />

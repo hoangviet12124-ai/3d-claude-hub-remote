@@ -2,6 +2,7 @@
 
 import { forwardRef } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { Presentation } from "lucide-react";
 import { useBackendCaps } from "@/components/backendCaps";
 import { CompactSimControls, SimulationControls } from "@/components/controls/SimulationControls";
 import { SessionSwitcher, useLiveSessions } from "@/components/layout/SessionSwitcher";
@@ -49,7 +50,7 @@ export const TopBar = forwardRef<HTMLElement>(function TopBar(_props, ref) {
       : connection === "reconnecting"
         ? "Reconnecting…"
         : "Connecting…"
-    : { running: "Running", paused: "Paused", ready: "Ready" }[status];
+    : { running: "Đang chạy", paused: "Tạm dừng", ready: "Sẵn sàng" }[status];
   const modeTone = caps.simulated ? "text-warn" : down ? "text-mist-500" : "text-signal-strong";
   const dotTone = down ? (connection === "closed" ? "bad" : "warn") : status === "running" ? "ok" : status === "paused" ? "warn" : "idle";
 
@@ -62,7 +63,7 @@ export const TopBar = forwardRef<HTMLElement>(function TopBar(_props, ref) {
       aria-label="Top bar"
     >
       <div className="min-w-0 flex-1 md:flex-none phl:flex-1">
-        <h1 className="truncate text-[15px] font-semibold tracking-tight text-mist-100 phl:text-[14px]">3D Claude Hub Remote</h1>
+        <h1 className="truncate text-[15px] font-semibold tracking-tight text-mist-100 phl:text-[14px]">Tổ giúp việc · Trung tâm điều hành</h1>
         <p className={`hidden truncate text-[11.5px] md:block phl:hidden ${modeTone}`} data-testid="mode-line">
           {caps.modeLine}
         </p>
@@ -83,11 +84,23 @@ export const TopBar = forwardRef<HTMLElement>(function TopBar(_props, ref) {
         </div>
       ) : null}
 
+      {caps.simulated ? null : (
+        <button
+          type="button"
+          onClick={() => useWorldStore.getState().setBoard(true)}
+          className="btn btn-primary h-9 flex-none px-3 text-[13px]"
+          title="Mở Bảng họp: các agent trình bày, trao đổi và giao việc cho Manager (phím H)"
+          data-testid="open-board"
+        >
+          <Presentation size={15} /> <span className="max-[419px]:sr-only">Bảng họp</span>
+        </button>
+      )}
+
       <div className="hidden items-center gap-4 border-l border-mist-500/12 pl-4 xl:flex" aria-label="Metrics">
-        <Metric label="Agents" value={metrics.agents} />
-        <Metric label="Active" value={metrics.active} tone="text-signal-strong" />
-        <Metric label="Pending" value={metrics.pending} />
-        <Metric label="Completed" value={metrics.completed} tone="text-ok" />
+        <Metric label="Agent" value={metrics.agents} />
+        <Metric label="Đang chạy" value={metrics.active} tone="text-signal-strong" />
+        <Metric label="Chờ" value={metrics.pending} />
+        <Metric label="Xong" value={metrics.completed} tone="text-ok" />
       </div>
 
       <div

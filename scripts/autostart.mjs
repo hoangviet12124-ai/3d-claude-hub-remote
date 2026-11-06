@@ -318,6 +318,14 @@ try {
   } else if (action === "status") {
     const cfg = readConfig();
     console.log(`${bold("app + server")}  ${serviceState(`${PREFIX}.up`)}`);
+    // The supervisor can be running while the office itself is down (e.g. retrying after a crash): ask the office.
+    const answers = (url) => {
+      const r = spawnSync(process.execPath, ["-e", `fetch(${JSON.stringify(url)},{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.status<500?0:1),()=>process.exit(1))`], { stdio: "ignore" });
+      return r.status === 0;
+    };
+    const appUp = answers("http://127.0.0.1:3210/");
+    const serverUp = answers(`http://127.0.0.1:${SERVER_PORT}/`);
+    console.log(`${bold("office answers")} ${appUp && serverUp ? green("yes") : red(`no (app ${appUp ? "up" : "down"}, server ${serverUp ? "up" : "down"}); see npm run autostart:logs`)}`);
     console.log(`${bold("tunnel")}        ${cfg?.tunnel ?? "none"}${cfg?.tunnel === "devtunnel" ? `  ${serviceState(`${PREFIX}.tunnel`)}` : ""}`);
     if (cfg?.tunnel === "tailscale") console.log(dim(`              ${sh("tailscale", ["serve", "status"]).stdout.trim().split("\n")[0] || "no serve config"}`));
     console.log(dim(`logs          ${LOGS}`));

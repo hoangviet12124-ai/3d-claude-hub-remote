@@ -2,12 +2,14 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { ArrowLeft, ChevronDown, ChevronRight, CircleStop, Crosshair, FolderOpen, KeyRound, Plus, Search, Send, ShieldAlert, Trash2, Wrench } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, CircleStop, Crosshair, FolderOpen, KeyRound, Plus, Search, Send, ShieldAlert, Trash2, Wrench, X } from "lucide-react";
 import { useLayoutMode } from "@/components/layout/layoutMode";
 import { firstLine } from "@/components/sessions/sessionText";
 import { Markdown } from "@/components/sessions/Markdown";
 import { AttachButton, AttachmentStrip, SessionImages, useAttachments } from "@/components/sessions/imageAttach";
 import { PermissionModePicker, rememberedMode } from "@/components/sessions/PermissionModePicker";
+import { ModelPicker, rememberedPick } from "@/components/sessions/ModelPicker";
+import type { ModelPick } from "@/components/sessions/ModelPicker";
 import { BranchChip, OwnerTag, ProjectChip, SessionStatusChip, ago, basename, useNow } from "@/components/sessions/sessionUi";
 import { Empty } from "@/components/ui";
 import type { SessionInfo, SessionItem, SessionPermissionMode } from "@/integrations/AgentBackend";
@@ -66,12 +68,12 @@ function UnlockSessions() {
       <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-mist-300" data-testid="sessions-locked">
         <KeyRound size={15} className="mt-0.5 shrink-0 text-warn" />
         <span>
-          This server can show and continue your Claude Code sessions, but it needs its token first. Open the link the server
-          printed, or paste the token from <code className="font-mono text-[11.5px] text-mist-100">cat ~/.aaw/token</code>.
+          Cần mã vào văn phòng để xem và giao việc cho các phiên. Mở đúng link có đuôi <code className="font-mono text-[11.5px] text-mist-100">#token=…</code>, hoặc
+          lấy mã bằng lệnh <code className="font-mono text-[11.5px] text-mist-100">type %USERPROFILE%\.aaw\token</code> trong cmd rồi dán vào ô dưới.
         </span>
       </p>
       <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-mist-500" htmlFor="sessions-token">
-        Server token
+        Mã vào văn phòng
         <input
           id="sessions-token"
           type="password"
@@ -80,17 +82,17 @@ function UnlockSessions() {
           value={token}
           onChange={(e) => setToken(e.target.value)}
           className="rounded-lg border border-mist-500/20 bg-ink-900/70 px-3 py-2 font-mono text-[12.5px] normal-case tracking-normal text-mist-100 outline-none focus-visible:border-signal/60"
-          placeholder="Paste the token"
+          placeholder="Dán mã vào đây"
         />
       </label>
       <button
         type="submit"
         disabled={!token.trim()}
-        className="self-start rounded-lg bg-signal px-3.5 py-2 text-[12.5px] font-semibold text-ink-950 transition-colors hover:bg-signal-strong disabled:cursor-not-allowed disabled:opacity-50"
+        className="self-start rounded-lg bg-signal px-3.5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-signal-strong disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Unlock sessions
+        Mở khóa
       </button>
-      <p className="text-[11.5px] text-mist-500">The token is kept for this browser tab only.</p>
+      <p className="text-[11.5px] text-mist-500">Mã chỉ được nhớ trong thẻ trình duyệt này. Nên lưu link có mã vào dấu trang (Ctrl + D) để lần sau bấm thẳng.</p>
     </form>
   );
 }
@@ -101,7 +103,9 @@ function SessionList() {
   const sessions = useSessionStore((s) => s.sessions);
   const control = useSessionStore((s) => s.capabilities.control);
   const permissions = useSessionStore((s) => s.permissions);
-  const [creating, setCreating] = useState(false);
+  const creating = useSessionStore((s) => s.composeNew);
+  const setCreating = useSessionStore((s) => s.setComposeNew);
+  const workdir = useSessionStore((s) => s.capabilities.workdir);
   const now = useNow();
   const asking = useMemo(() => new Set(permissions.map((p) => p.sessionId)), [permissions]);
   const [project, setProject] = useState<string | null>(null);
@@ -118,7 +122,8 @@ function SessionList() {
   // Folders sessions ran in, most recent first, with the one last used to start a session from here on top.
   const folders = useMemo(() => recentFolders(sessions), [sessions]);
   // The filtered project's folder if one is picked below, else the most recent.
-  const defaultCwd = (project !== null && folders.find((f) => (basename(f.cwd) || "(no folder)") === project)?.cwd) || folders[0]?.cwd || "";
+  // The server's work folder (Tổ giúp việc: Brainstorm) comes first, unless a project is picked below.
+  const defaultCwd = (project !== null && folders.find((f) => (basename(f.cwd) || "(no folder)") === project)?.cwd) || workdir || folders[0]?.cwd || "";
   const q = query.trim().toLowerCase();
   const shown = sessions.filter(
     (s) => (project === null || (basename(s.cwd) || "(no folder)") === project) && (!q || s.title.toLowerCase().includes(q) || s.cwd.toLowerCase().includes(q)),
@@ -132,9 +137,9 @@ function SessionList() {
         ) : (
           <div className="flex items-center gap-2">
             <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-              <Plus size={14} /> New session
+              <Plus size={14} /> Giao việc mới
             </button>
-            <span className="text-[11.5px] text-mist-500">Runs on the server&apos;s machine</span>
+            <span className="text-[11.5px] text-mist-500">Mở một phiên Claude Code mới trên máy này</span>
           </div>
         )
       ) : (
@@ -148,7 +153,7 @@ function SessionList() {
             <input
               type="search"
               className="field w-full py-1.5 pl-8 text-[12.5px]"
-              placeholder="Search sessions by title or folder"
+              placeholder="Tìm phiên theo tên hoặc thư mục"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="Search sessions"
@@ -159,7 +164,7 @@ function SessionList() {
           </label>
           {projects.length > 1 ? (
             <div className="scroll-thin -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5" role="group" aria-label="Filter by project">
-              <FilterChip active={project === null} onClick={() => setProject(null)} label="All" count={sessions.length} />
+              <FilterChip active={project === null} onClick={() => setProject(null)} label="Tất cả" count={sessions.length} />
               {projects.map(([p, n]) => (
                 <FilterChip key={p} active={project === p} onClick={() => setProject(project === p ? null : p)} label={p} count={n} mono />
               ))}
@@ -197,7 +202,7 @@ function SessionList() {
                   ) : null}
                   <span className="ml-auto flex-none tabular-nums">{ago(s.lastActivity, now)}</span>
                 </span>
-                {!s.readable ? <span className="text-[11px] text-mist-500">Transcript not found yet</span> : null}
+                {!s.readable ? <span className="text-[11px] text-mist-500">Chưa thấy nội dung phiên</span> : null}
               </button>
               <FollowButton sessionId={s.sessionId} title={s.title} variant="row" />
               {(s.status === "idle" || s.status === "ended") && !asking.has(s.sessionId) ? <RemoveButton sessionId={s.sessionId} title={s.title} /> : null}
@@ -245,7 +250,7 @@ function FollowButton({ sessionId, title, variant }: { sessionId: string; title:
       : state === "auto"
         ? "The robots are following this session now (Auto). Press to pin it."
         : "Pin the robots to this session in the 3D world";
-  const label = pinned ? "Following" : "Follow in 3D";
+  const label = pinned ? "Robot đang theo" : "Cho robot theo phiên này";
   if (variant === "row") {
     return (
       <button
@@ -261,7 +266,7 @@ function FollowButton({ sessionId, title, variant }: { sessionId: string; title:
         data-testid="follow-session"
       >
         <Crosshair size={14} aria-hidden />
-        {pinned ? "Following" : state === "auto" ? "In 3D" : "Follow"}
+        {pinned ? "Đang theo" : state === "auto" ? "Trên 3D" : "Theo"}
       </button>
     );
   }
@@ -317,7 +322,7 @@ function RemoveButton({ sessionId, title }: { sessionId: string; title: string }
       data-testid="remove-session"
     >
       <Trash2 size={14} aria-hidden />
-      {armed ? "Sure?" : "Remove"}
+      {armed ? "Chắc chưa?" : "Ẩn"}
     </button>
   );
 }
@@ -361,6 +366,7 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
   const prompt = useRef<HTMLTextAreaElement>(null);
   const allowedModes = useSessionStore((s) => s.capabilities.permissionModes) ?? DEFAULT_MODES;
   const [mode, setMode] = useState<SessionPermissionMode>(() => rememberedMode(allowedModes));
+  const [pick, setPick] = useState<ModelPick>(() => rememberedPick());
   const att = useAttachments(busy);
   const choose = (dir: string) => {
     setChosen(dir);
@@ -371,9 +377,9 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
   const submit = async () => {
     if (busy) return;
     const dir = cwd.trim();
-    if (!dir.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(dir)) return setError("The working directory must be an absolute path, e.g. /Users/you/project.");
+    if (!dir.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(dir)) return setError("Thư mục làm việc phải là đường dẫn đầy đủ, ví dụ C:\\Users\\ACV\\...\\Brainstorm.");
     if (att.reading) return;
-    if (!text.trim() && att.items.length === 0) return setError("Write the first prompt.");
+    if (!text.trim() && att.count === 0) return setError("Anh chưa gõ việc cần giao.");
     setBusy(true);
     setError(null);
     try {
@@ -381,7 +387,7 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
     } catch {
       // storage blocked: the list still offers recent folders from the sessions
     }
-    const r = await sessionCommands.start(dir, text, mode, att.payload());
+    const r = await sessionCommands.start(dir, att.text(text), mode, att.payload(), pick);
     // On success the chat view replaces this form (sessionCommands.start opens the new session).
     if (!r.ok) {
       setBusy(false);
@@ -399,16 +405,16 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
       }}
       aria-label="New session"
     >
-      <h3 className="text-[13px] font-semibold text-mist-100">New session</h3>
+      <h3 className="text-[13px] font-semibold text-mist-100">Giao việc mới cho Manager</h3>
       <div className="flex flex-col gap-1 text-[11.5px] text-mist-500">
-        <label htmlFor="new-session-cwd">Working directory (absolute path on the server&apos;s machine)</label>
+        <label htmlFor="new-session-cwd">Thư mục làm việc (đường dẫn đầy đủ, ví dụ thư mục Brainstorm)</label>
         <div className="flex gap-1.5">
           <input
             id="new-session-cwd"
             className="field min-w-0 flex-1 font-mono text-[12px]"
             value={cwd}
             onChange={(e) => setChosen(e.target.value)}
-            placeholder="/Users/you/project"
+            placeholder="C:\Users\ACV\...\Desktop\Brainstorm"
             spellCheck={false}
             autoComplete="off"
             disabled={busy}
@@ -453,11 +459,17 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
         ) : null}
       </div>
       <PermissionModePicker id="new-session-mode" value={mode} allowed={allowedModes} onChange={setMode} disabled={busy} />
+      <ModelPicker id="new-session-model" value={pick} onChange={setPick} disabled={busy} />
       <label className="flex flex-col gap-1 text-[11.5px] text-mist-500">
-        First prompt
+        Việc cần giao
         <textarea
           ref={prompt}
-          className="field min-h-[72px] resize-y leading-snug"
+          className="field scroll-thin max-h-[50vh] min-h-[96px] resize-y leading-snug"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "";
+            el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * 0.5))}px`;
+          }}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onPaste={att.onPaste}
@@ -467,11 +479,12 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
               void submit();
             }
           }}
-          placeholder="What should Claude do? (Enter starts, Shift+Enter for a new line; paste or drop images)"
+          placeholder="Anh giao việc gì cho Manager? (Enter để gửi, Shift+Enter xuống dòng)"
           disabled={busy}
           name="prompt"
         />
       </label>
+      <p className="text-[11px] text-mist-500 max-lg:hidden"><kbd className="font-mono">Enter</kbd> để gửi · <kbd className="font-mono">Shift + Enter</kbd> để xuống dòng</p>
       <AttachmentStrip a={att} disabled={busy} />
       {error ? (
         <p role="alert" className="rounded-lg border border-bad/30 bg-bad/10 px-2 py-1.5 text-[12px] text-bad">
@@ -480,13 +493,13 @@ function NewSessionForm({ folders, defaultCwd, onCancel }: { folders: Folder[]; 
       ) : null}
       <div className="flex items-center gap-2">
         <button type="submit" className="btn btn-primary" disabled={busy || att.reading}>
-          <Send size={13} /> {busy ? "Starting…" : "Start session"}
+          <Send size={13} /> {busy ? "Đang mở phiên…" : "Mở phiên và giao việc"}
         </button>
         <AttachButton onFiles={(f) => void att.add(f)} disabled={busy} className="px-2.5" />
         <button type="button" className="btn btn-quiet" onClick={onCancel} disabled={busy}>
-          Cancel
+          Hủy
         </button>
-        {busy ? <span className="text-[11.5px] text-mist-500">Waiting for Claude Code to start…</span> : null}
+        {busy ? <span className="text-[11.5px] text-mist-500">Đang chờ Claude Code khởi động (có thể mất vài chục giây)…</span> : null}
       </div>
     </form>
   );
@@ -575,13 +588,14 @@ function SessionChat({ sessionId }: { sessionId: string }) {
       <div className="flex flex-none flex-col gap-1 border-b border-mist-500/10 px-4 py-2 phl:py-1">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => sessionCommands.close()} className="btn btn-quiet -ml-2 h-7 flex-none px-2 text-[12px]">
-            <ArrowLeft size={13} /> Back
+            <ArrowLeft size={13} /> Danh sách
           </button>
           <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-mist-100" title={session?.title}>
-            {session?.title ?? "Starting session…"}
+            {session?.title ?? "Đang mở phiên…"}
           </span>
           {session ? <SessionStatusChip status={session.status} /> : null}
           <FollowButton sessionId={sessionId} title={session?.title ?? ""} variant="header" />
+          {session?.owner === "web" && session.status !== "ended" ? <EndButton sessionId={sessionId} busy={session.status === "running" || session.status === "waiting"} /> : null}
         </div>
         {session ? (
           <div className="flex items-center gap-2.5 text-[11px] text-mist-500 phl:hidden">
@@ -602,12 +616,12 @@ function SessionChat({ sessionId }: { sessionId: string }) {
             {openError}
           </p>
         ) : null}
-        {items.length === 0 && !openError ? <p className="py-6 text-center text-[12px] text-mist-500">Waiting for the transcript…</p> : null}
+        {items.length === 0 && !openError ? <p className="py-6 text-center text-[12px] text-mist-500">Đang chờ Claude Code mở phiên…</p> : null}
         <div ref={content} className="flex flex-col gap-2.5">
         {earlier > 0 ? (
           <div className="flex flex-col items-center gap-1 py-1">
             <button type="button" onClick={() => void loadEarlier()} disabled={loadingEarlier} className="btn btn-quiet h-8 px-3 text-[12px]" data-testid="load-earlier">
-              {loadingEarlier ? "Loading…" : `Load ${Math.min(150, earlier)} earlier (${earlier} more)`}
+              {loadingEarlier ? "Đang tải…" : `Tải ${Math.min(150, earlier)} tin cũ hơn (còn ${earlier})`}
             </button>
             {earlierError ? <p className="text-[11.5px] text-bad">{earlierError}</p> : null}
           </div>
@@ -623,6 +637,31 @@ function SessionChat({ sessionId }: { sessionId: string }) {
 
       {control ? <Composer sessionId={sessionId} session={session} /> : null}
     </div>
+  );
+}
+
+/** Close the Claude Code process behind a web session: like closing a session in the Code app. */
+function EndButton({ sessionId, busy }: { sessionId: string; busy: boolean }) {
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const end = async () => {
+    const e = await sessionCommands.end(sessionId);
+    setConfirm(false);
+    setError(e);
+  };
+  if (confirm) {
+    return (
+      <span className="flex flex-none items-center gap-1">
+        <span className="text-[11.5px] text-mist-300">{busy ? "Đang chạy, vẫn đóng?" : "Đóng phiên?"}</span>
+        <button type="button" className="btn btn-ghost h-7 px-2 text-[12px] text-bad" onClick={() => void end()}>Đóng</button>
+        <button type="button" className="btn btn-quiet h-7 px-2 text-[12px]" onClick={() => setConfirm(false)}>Thôi</button>
+      </span>
+    );
+  }
+  return (
+    <button type="button" className="btn btn-quiet h-7 flex-none px-2 text-[12px]" onClick={() => setConfirm(true)} title={error ?? "Đóng phiên Claude Code chạy ngầm. Gửi tin mới vào phiên này sẽ mở lại đúng cuộc trao đổi."}>
+      <X size={13} /> Đóng phiên
+    </button>
   );
 }
 
@@ -700,11 +739,13 @@ function Composer({ sessionId, session }: { sessionId: string; session: SessionI
   const mode = useLayoutMode();
   const compact = mode !== "desktop";
   const field = useRef<HTMLTextAreaElement>(null);
+  // Grows with the text (a long assignment stays readable), up to 144 px on phones and 45% of the window elsewhere.
   useLayoutEffect(() => {
     const el = field.current;
     if (!el) return;
     el.style.height = "";
-    if (compact) el.style.height = `${Math.min(el.scrollHeight + 2, 144)}px`;
+    const max = compact ? 144 : Math.round(window.innerHeight * 0.45);
+    el.style.height = `${Math.min(el.scrollHeight + 2, max)}px`;
   }, [text, compact]);
   const canStop = session?.owner === "web" && (session.status === "running" || session.status === "waiting");
   const allowedModes = useSessionStore((s) => s.capabilities.permissionModes) ?? DEFAULT_MODES;
@@ -720,15 +761,22 @@ function Composer({ sessionId, session }: { sessionId: string; session: SessionI
     } else setPending(m);
   };
 
-  const empty = !text.trim() && att.items.length === 0;
+  // Model and effort: a running web session reports its own; for any other the pick applies when the prompt starts it.
+  const running = session?.owner === "web" && session.status !== "ended";
+  const [pickDraft, setPickDraft] = useState<ModelPick | null>(null);
+  const pickShown: ModelPick = pickDraft ?? (running ? { ...(session.model ? { model: session.model } : {}), ...(session.effort ? { effort: session.effort } : {}) } : rememberedPick());
+  const effortNote = running && pickDraft && pickDraft.effort !== session.effort ? "Mức suy nghĩ mới áp dụng khi mở việc mới hoặc khi phiên này chạy lại; model thì đổi ngay từ tin tiếp theo." : null;
+
+  const empty = !text.trim() && att.count === 0;
   const send = async () => {
     if (busy || empty || att.reading) return;
     setBusy(true);
     setError(null);
-    const r = await sessionCommands.send(sessionId, text, liveMode ? undefined : modeShown, att.payload());
+    const r = await sessionCommands.send(sessionId, att.text(text), liveMode ? undefined : modeShown, att.payload(), pickShown);
     setBusy(false);
     if (r.ok) {
       setText("");
+      setPickDraft(null);
       att.clear();
     } else setError(r.error ?? "Could not send.");
   };
@@ -751,20 +799,22 @@ function Composer({ sessionId, session }: { sessionId: string; session: SessionI
       aria-label="Send a prompt"
       data-testid="composer"
     >
-      {forks ? <p className="text-[11px] leading-snug text-mist-500">Sends to a fork; the terminal session is left untouched.</p> : null}
+      {forks ? <p className="text-[11px] leading-snug text-mist-500">Phiên này mở từ Claude Desktop: tin gửi từ đây sẽ mở một nhánh mới, phiên gốc giữ nguyên.</p> : null}
       <PermissionModePicker id={`mode-${sessionId}`} value={modeShown} allowed={allowedModes} onChange={(m) => void changeMode(m)} compact />
+      <ModelPicker id={`model-${sessionId}`} value={pickShown} onChange={setPickDraft} effortNote={effortNote} />
       {error ? (
         <p role="alert" className="rounded-lg border border-bad/30 bg-bad/10 px-2 py-1 text-[12px] text-bad">
           {error}
         </p>
       ) : null}
+      <p className="text-[11px] text-mist-500 max-lg:hidden"><kbd className="font-mono">Enter</kbd> để gửi · <kbd className="font-mono">Shift + Enter</kbd> để xuống dòng</p>
       <AttachmentStrip a={att} disabled={busy} />
       <div className="flex items-end gap-2">
         <AttachButton onFiles={(f) => void att.add(f)} disabled={busy} className="h-10 w-10 flex-none p-0 max-lg:h-11 max-lg:w-11" />
         <textarea
           ref={field}
-          className="field scroll-thin max-h-36 min-h-[40px] flex-1 resize-none py-2 leading-snug max-lg:min-h-11"
-          rows={compact ? 1 : 2}
+          className="field scroll-thin max-h-36 min-h-[40px] flex-1 resize-none py-2 leading-snug max-lg:min-h-11 lg:max-h-[45vh] lg:min-h-[64px]"
+          rows={compact ? 1 : 3}
           onFocus={() => {
             if (mode === "sheet") window.dispatchEvent(new Event("aaw:sheet-full"));
           }}
@@ -777,19 +827,19 @@ function Composer({ sessionId, session }: { sessionId: string; session: SessionI
               void send();
             }
           }}
-          placeholder={busy ? "Sending…" : compact ? "Reply to Claude…" : "Reply to Claude (Enter sends, Shift+Enter for a new line)"}
+          placeholder={busy ? "Đang gửi…" : compact ? "Trả lời Manager…" : "Trả lời Manager hoặc giao thêm việc (Enter để gửi, Shift+Enter xuống dòng)"}
           disabled={busy}
           aria-label="Prompt"
           name="prompt"
         />
         <div className="flex flex-none flex-col gap-1.5">
           {canStop ? (
-            <button type="button" className="btn btn-ghost h-8 px-2.5 text-bad" onClick={() => void stop()} disabled={stopping} title="Interrupt the current turn">
-              <CircleStop size={14} /> Stop
+            <button type="button" className="btn btn-ghost h-8 px-2.5 text-bad" onClick={() => void stop()} disabled={stopping} title="Dừng lượt đang chạy (phiên vẫn mở)">
+              <CircleStop size={14} /> Dừng
             </button>
           ) : null}
-          <button type="submit" className="btn btn-primary h-8 px-2.5" disabled={busy || empty || att.reading} title="Send (Enter)">
-            <Send size={13} /> {busy ? "Sending" : "Send"}
+          <button type="submit" className="btn btn-primary h-8 px-2.5" disabled={busy || empty || att.reading} title="Gửi (Enter)">
+            <Send size={13} /> {busy ? "Đang gửi" : "Gửi"}
           </button>
         </div>
       </div>

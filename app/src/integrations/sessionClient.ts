@@ -1,11 +1,36 @@
 import { useSessionStore } from "../state/useSessionStore.ts";
-import type { PromptImage, SessionFileInfo, SessionInfo, SessionItem, SessionPermissionMode } from "./AgentBackend.ts";
+import { useTabStore } from "../state/useTabStore.ts";
+import type { PromptImage, SessionEffort, SessionFileInfo, SessionInfo, SessionItem, SessionModel, SessionPermissionMode } from "./AgentBackend.ts";
 import type { WebSocketAgentBackend } from "./WebSocketAgentBackend.ts";
 
 // The sessions extension (live Claude Code servers started with --control): wiring into useSessionStore and
 // the commands the Sessions tab, the permission cards and TaskDetails use. Components never call the backend.
 
 let socket: WebSocketAgentBackend | null = null;
+
+const LAST_SESSION_KEY = "aaw:last-session";
+
+/** The session last opened in this browser, so the meeting board comes back to it. */
+export function lastSession(): string | null {
+  try {
+    return localStorage.getItem(LAST_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberLastSession(sessionId: string): void {
+  try {
+    localStorage.setItem(LAST_SESSION_KEY, sessionId);
+  } catch {
+    // storage blocked: the board opens on the list instead
+  }
+}
+
+/** Only the fields that were chosen, so an older server sees the same command as before. */
+function pickFields(p: { model?: SessionModel; effort?: SessionEffort }): { model?: SessionModel; effort?: SessionEffort } {
+  return { ...(p.model ? { model: p.model } : {}), ...(p.effort ? { effort: p.effort } : {}) };
+}
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -33,8 +58,10 @@ export function wireSessions(b: WebSocketAgentBackend): () => void {
         break;
       case "sessionMoved":
         // /clear (or /reset, /new) restarted a web session under a new id: follow it if it is on screen.
+        useTabStore.getState().rename(m.from, m.to);
         if (st.openId === m.from) {
           st.setOpen(m.to);
+          rememberLastSession(m.to);
           void loadSession(m.to, true);
         }
         break;
@@ -144,6 +171,8 @@ export const sessionCommands = {
     if (prev === sessionId) return;
     if (prev) void backend().request({ name: "closeSession", sessionId: prev }).catch(() => {});
     useSessionStore.getState().setOpen(sessionId);
+    rememberLastSession(sessionId);
+    useTabStore.getState().pin(sessionId);
     await loadSession(sessionId, options.retry ?? false);
   },
 
@@ -159,10 +188,10 @@ export const sessionCommands = {
    * Continue a session. A session still open in a terminal is continued in a fork (a new session id), which
    * is then opened in place of the original.
    */
-  send: async (sessionId: string, text: string, permissionMode?: SessionPermissionMode, images: PromptImage[] = []): Promise<SendResult> => {
+  send: async (sessionId: string, text: string, permissionMode?: SessionPermissionMode, images: PromptImage[] = [], pick: { model?: SessionModel; effort?: SessionEffort } = {}): Promise<SendResult> => {
     try {
       const ack = await backend().request<{ sessionId: string; forked: boolean }>({
-        name: "sendPrompt", sessionId, text, ...(images.length > 0 ? { images } : {}), ...(permissionMode ? { permissionMode } : {}),
+        name: "sendPrompt", sessionId, text, ...(images.length > 0 ? { images } : {}), ...(permissionMode ? { permissionMode } : {}), ...pickFields(pick),
       });
       if (ack.sessionId !== sessionId) void sessionCommands.open(ack.sessionId, { retry: true });
       return { ok: true, sessionId: ack.sessionId, forked: ack.forked };
@@ -172,6 +201,17 @@ export const sessionCommands = {
   },
 
   /** Start a new session in `cwd` (an absolute path on the server's machine) and open it. */
+  /** Save a document on the server's machine for a prompt; resolves to its path, rejects with a message. */
+  saveAttachment: async (fileName: string, data: string): Promise<string> => {
+    try {
+      const ack = await backend().request<{ path: string }>({ name: "saveAttachment", fileName, data });
+      return ack.path;
+    } catch (err) {
+      const message = errorText(err);
+      throw new Error(/unknown command/i.test(message) ? "Văn phòng đang chạy bản cũ, chưa nhận tệp đính kèm. Anh chạy lại lệnh cập nhật (git pull rồi npm run autostart)." : message);
+    }
+  },
+
   /** Change how a running web session handles permission asks; returns an error message or null. */
   setMode: async (sessionId: string, mode: SessionPermissionMode): Promise<string | null> => {
     try {
@@ -182,10 +222,10 @@ export const sessionCommands = {
     }
   },
 
-  start: async (cwd: string, text: string, permissionMode?: SessionPermissionMode, images: PromptImage[] = []): Promise<SendResult> => {
+  start: async (cwd: string, text: string, permissionMode?: SessionPermissionMode, images: PromptImage[] = [], pick: { model?: SessionModel; effort?: SessionEffort } = {}): Promise<SendResult> => {
     try {
       const ack = await backend().request<{ sessionId: string; forked: boolean }>({
-        name: "sendPrompt", cwd, text, ...(images.length > 0 ? { images } : {}), ...(permissionMode ? { permissionMode } : {}),
+        name: "sendPrompt", cwd, text, ...(images.length > 0 ? { images } : {}), ...(permissionMode ? { permissionMode } : {}), ...pickFields(pick),
       });
       void sessionCommands.open(ack.sessionId, { retry: true });
       return { ok: true, sessionId: ack.sessionId, forked: ack.forked };
@@ -262,6 +302,17 @@ export const sessionCommands = {
     } catch (err) {
       const message = errorText(err);
       throw new Error(/unknown command/i.test(message) ? "This server cannot play videos yet. Restart it to update." : message);
+    }
+  },
+
+  /** Close the Claude Code process of a web session (it stays listed as ended); returns an error message or null. */
+  end: async (sessionId: string): Promise<string | null> => {
+    try {
+      await backend().request({ name: "endSession", sessionId });
+      return null;
+    } catch (err) {
+      const message = errorText(err);
+      return /unknown command/i.test(message) ? "Máy chủ văn phòng là bản cũ, chưa đóng phiên được. Tắt và chạy lại npm run up." : message;
     }
   },
 

@@ -4,15 +4,16 @@
 //   sim          the deterministic simulation, now behind the WebSocket protocol
 //   claude-code  live: POST Claude Code hook payloads to /hook (see bridge/README.md)
 //   --control    with claude-code: open session transcripts, send prompts and answer permission asks
+//   --workdir    with --control: the folder new sessions start in when the web UI names none
 //                from the web UI. Requires a token (kept in ~/.aaw/token unless --token is given).
 //   --trust-tailscale  also listen on 127.0.0.1:<--tailscale-port> (default --port + 1) for `tailscale serve`;
 //                there, these Tailscale logins (e.g. you@github) need no token. Point tailscale serve at that port.
 //
 // Open http://127.0.0.1:8787/ for the viewer (run `npm run viewer` once first).
 import { randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { MockAgentBackend } from "../src/integrations/MockAgentBackend.ts";
@@ -36,6 +37,7 @@ const { values } = parseArgs({
     "app-port": { type: "string", default: "3000" },
     "proxy-app": { type: "boolean", default: false },
     "allow-bypass": { type: "boolean", default: false },
+    workdir: { type: "string" },
     "permission-mode": { type: "string" },
     "trust-tailscale": { type: "string" },
     "tailscale-port": { type: "string" },
@@ -45,10 +47,28 @@ const { values } = parseArgs({
 const here = dirname(fileURLToPath(import.meta.url));
 const viewerFile = join(here, "..", "viewer", "dist", "fragment.html");
 
+/**
+ * Agent file names in .claude/agents of `cwd` or the nearest folder above it that has one (the org chart builds its
+ * departments from them). A hook's cwd follows the session's `cd`, so it is often a subfolder of the vault.
+ */
+function agentFiles(cwd: string): string[] {
+  if (!isAbsolute(cwd)) return [];
+  let dir = cwd;
+  for (let i = 0; i < 12; i++) {
+    const agents = join(dir, ".claude", "agents");
+    if (existsSync(agents)) return readdirSync(agents).filter((f) => f.toLowerCase().endsWith(".md")).map((f) => f.slice(0, -3));
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return [];
+}
+
 let backend: AgentBackend;
 let live: LiveAgentBackend | null = null;
 if (values.source === "claude-code") {
-  live = new LiveAgentBackend({ showPrompts: !values["hide-prompts"] });
+  const orgCwd = values.workdir ?? process.env.AAW_WORKDIR;
+  live = new LiveAgentBackend({ showPrompts: !values["hide-prompts"], listAgents: agentFiles, ...(orgCwd ? { orgCwd } : {}) });
   backend = live;
 } else if (values.source === "sim") {
   backend = new MockAgentBackend();
@@ -81,6 +101,8 @@ const sessions = values.control
       runner: createSdkRunner(),
       allowBypass: values["allow-bypass"],
       hiddenFile: join(homedir(), ".aaw", "hidden-sessions.json"),
+      // AAW_WORKDIR: how `npm run up` passes it (no shell quoting of a folder with spaces on Windows).
+      ...((values.workdir ?? process.env.AAW_WORKDIR) ? { workdir: values.workdir ?? process.env.AAW_WORKDIR } : {}),
       ...(values["permission-mode"] ? { defaultPermissionMode: values["permission-mode"] as SessionPermissionMode } : {}),
     })
   : undefined;
@@ -137,6 +159,8 @@ if (live) console.log(`  hooks      POST ${httpUrl}/hook${values.record ? `   (r
 if (values["proxy-app"]) console.log(`  proxy      the app on :${values["app-port"]} is also served here: ${httpUrl}/${q}   (forward this one port for a tunnel)`);
 if (sessions) {
   console.log(`  control    on: transcripts, prompts and permission answers from the web UI`);
+  if (values.workdir ?? process.env.AAW_WORKDIR) console.log(sessions?.workdir ? `  workdir    new sessions start in ${sessions.workdir}` : `  warning    workdir ${values.workdir ?? process.env.AAW_WORKDIR} is not an existing absolute folder; new sessions must name one`);
+  if (sessions) console.log(`  attach     documents attached in the web UI are saved under ${sessions.attachDir}`);
   console.log(`  app        http://localhost:${values["app-port"]}/${q}   (run the app with NEXT_PUBLIC_AGENT_BACKEND=websocket NEXT_PUBLIC_AGENT_WS_URL=${server.url})`);
 }
 if (server.tailnetPort) {

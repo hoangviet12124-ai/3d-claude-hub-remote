@@ -71,8 +71,9 @@ function RenderStats() {
 
 // Module constants: R3F compares these props on every render, and stable objects make that trivially true.
 const OVERVIEW = CAMERA_PRESETS.overview.position;
-const CAMERA_OPTIONS = { position: [OVERVIEW[0], OVERVIEW[1], OVERVIEW[2]] as [number, number, number], fov: CAMERA_FOV, near: 0.1, far: 220 };
-const GL_OPTIONS = { antialias: true, powerPreference: "high-performance" as const };
+const CAMERA_OPTIONS = { position: [OVERVIEW[0], OVERVIEW[1], OVERVIEW[2]] as [number, number, number], fov: CAMERA_FOV, near: 1, far: 600 };
+// alpha: nền giấy kẻ ô là CSS phía sau canvas (AppShell), canvas không tô nền.
+const GL_OPTIONS = { antialias: true, alpha: true, powerPreference: "high-performance" as const };
 const DPR_HIGH: [number, number] = [1, 1.75];
 const DPR_LOW: [number, number] = [1, 1.2];
 /** Consecutive PerformanceMonitor declines (each ≈ 2.5 s below 40 fps) before switching to low. */
@@ -108,14 +109,13 @@ export default function WorldCanvas() {
         camera={CAMERA_OPTIONS}
         gl={GL_OPTIONS}
         onCreated={({ gl }) => {
-          gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.15;
+          // Màu phẳng đúng như khai báo (kiểu bản vẽ), không nén tông như ảnh chụp.
+          gl.toneMapping = THREE.NoToneMapping;
+          gl.setClearColor(0x000000, 0);
         }}
         aria-label="3D office: six AI agents' stations, the operations hub, mission control and meeting areas"
         role="img"
       >
-        <color attach="background" args={["#080b10"]} />
-        <fog attach="fog" args={["#0a0e15", 48, 130]} />
         <PerformanceMonitor onDecline={onDecline} onIncline={onIncline}>
           <FrameTimerStart />
           <Lighting />

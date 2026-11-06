@@ -24,7 +24,9 @@
     "test:sound": "node --experimental-strip-types --no-warnings scripts/sound-test.ts",
     "test:sessions": "node --experimental-strip-types --no-warnings scripts/sessions-test.ts",
     "test:session-files": "node --experimental-strip-types --no-warnings scripts/session-files-test.ts",
-    "test:security": "node --experimental-strip-types --no-warnings scripts/security-test.ts"
+    "test:security": "node --experimental-strip-types --no-warnings scripts/security-test.ts",
+    "test:attachments": "node --experimental-strip-types --no-warnings scripts/attachments-test.ts",
+    "test:org": "node --experimental-strip-types --no-warnings scripts/org-test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

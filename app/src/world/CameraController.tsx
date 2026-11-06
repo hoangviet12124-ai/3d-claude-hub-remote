@@ -3,12 +3,13 @@
 import { useRef } from "react";
 import type { ComponentRef } from "react";
 import * as THREE from "three";
+import { MOUSE, TOUCH } from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { liveWorld, useWorldStore } from "@/state/useWorldStore";
 import type { FreeArea } from "@/world/cameraPresets";
 import type { CameraRequest } from "@/state/useWorldStore";
-import { CAMERA_FOV, CAMERA_FOV_MAX, CAMERA_LIMITS, CAMERA_PRESETS, clampTarget, fitScale, freeArea } from "@/world/cameraPresets";
+import { CAMERA_FOV, CAMERA_FOV_MAX, CAMERA_LIMITS, CAMERA_PRESETS, ISO_PHI, ISO_THETA, clampTarget, fitScale, freeArea } from "@/world/cameraPresets";
 import { pointerState } from "@/world/InteractionManager";
 import { useRenderCount } from "@/world/renderCounts";
 
@@ -75,26 +76,27 @@ function goalFor(request: CameraRequest, fit: number, overview: OverviewFrame, c
     tmpOffset.subVectors(camera.position, target);
     tmpSpherical.setFromVector3(tmpOffset);
     const distance = (request.distance ?? tmpSpherical.radius / fit) * fit;
-    // Keep the user's bearing, but never look along the floor when focusing something small.
-    return { target: t, theta: tmpSpherical.theta, phi: clampPhi(Math.min(tmpSpherical.phi, 1.05)), distance: clampDistance(distance) };
+    // Hướng nhìn cố định, đúng như mọi preset.
+    return { target: t, theta: ISO_THETA, phi: ISO_PHI, distance: clampDistance(distance) };
   }
   return null;
 }
 
 /** Floor corners plus the top of the window wall: what "the whole office" means for the overview. */
 const OFFICE_EXTENT: readonly [number, number, number][] = [
-  [-15, 0, -9.5],
-  [15, 0, -9.5],
-  [-15, 0, 11.6],
-  [15, 0, 11.6],
-  [-15, 4.4, -9.5],
-  [15, 4.4, -9.5],
+  [-20.2, -0.35, -10.7],
+  [20, -0.35, -10.7],
+  [-20.2, -0.35, 13.5],
+  [20, -0.35, 13.5],
+  [-20.2, 2.6, -10.7],
+  [20, 2.6, -10.7],
+  [-20.2, 2.6, 13.5],
 ];
 const FRAME_MARGIN_PX = 14;
 /** The CameraBar floats at the bottom of the free area; keep the office's front edge above it. */
 const CAMERA_BAR_PX = 56;
 const probeVec = new THREE.Vector3();
-/** The overview's scale at the 70 m distance limit. */
+/** The overview's scale at the `maxDistance` limit. */
 const OVERVIEW_MAX_SCALE =
   CAMERA_LIMITS.maxDistance / Math.hypot(...CAMERA_PRESETS.overview.position.map((v, i) => v - CAMERA_PRESETS.overview.target[i]!));
 const probeTarget = new THREE.Vector3();
@@ -104,7 +106,7 @@ interface OverviewFrame {
   scale: number;
   /** Sideways nudge of the preset (target and camera) in metres, centring the office in the free area. */
   dx: number;
-  /** False when even the largest scale (the 70 m `maxDistance`) leaves part of the office outside. */
+  /** False when even the largest scale (`maxDistance`) leaves part of the office outside. */
   fits: boolean;
 }
 
@@ -113,16 +115,18 @@ interface OverviewFrame {
  * which every office corner projects inside the free area, allowing a sideways nudge of up to ±3 m so the
  * office sits centred instead of being pushed out by perspective. `camera` must already carry the view offset.
  */
-function overviewFrame(base: number, camera: THREE.PerspectiveCamera, width: number, height: number, free: FreeArea): OverviewFrame {
+function overviewFrame(base: number, camera: THREE.PerspectiveCamera, width: number, height: number, free: FreeArea, compact = false): OverviewFrame {
   const p = CAMERA_PRESETS.overview;
   const target = new THREE.Vector3(...p.target);
   const offset = new THREE.Vector3(...p.position).sub(target);
   const probe = camera.clone();
   const maxScale = OVERVIEW_MAX_SCALE;
-  const L = free.left + FRAME_MARGIN_PX;
-  const R = free.left + free.width - FRAME_MARGIN_PX;
-  const T = free.top + FRAME_MARGIN_PX;
-  const B = free.top + free.height - FRAME_MARGIN_PX - CAMERA_BAR_PX;
+  // Small in the board's corner: no camera bar there, and the usual margin would waste most of the box.
+  const margin = compact ? 6 : FRAME_MARGIN_PX;
+  const L = free.left + margin;
+  const R = free.left + free.width - margin;
+  const T = free.top + margin;
+  const B = free.top + free.height - margin - (compact ? 0 : CAMERA_BAR_PX);
   // 2 % steps, and the last step lands exactly on the distance limit.
   for (let step = Math.min(base, maxScale); ; step += 0.02) {
     const k = Math.min(step, maxScale);
@@ -167,18 +171,18 @@ function overviewFrame(base: number, camera: THREE.PerspectiveCamera, width: num
  * until the overview fits at the distance limit, then search the overview again at that fov. Wide layouts
  * keep fov 40. Mutates `camera.fov` (and its projection) and returns the overview frame for it.
  */
-function fitFovAndOverview(base: number, camera: THREE.PerspectiveCamera, width: number, height: number, free: FreeArea): OverviewFrame {
+function fitFovAndOverview(base: number, camera: THREE.PerspectiveCamera, width: number, height: number, free: FreeArea, compact = false): OverviewFrame {
   camera.fov = CAMERA_FOV;
   camera.updateProjectionMatrix();
-  const frame = overviewFrame(base, camera, width, height, free);
+  const frame = overviewFrame(base, camera, width, height, free, compact);
   if (frame.fits) return frame;
   for (let fov = CAMERA_FOV + 1; fov <= CAMERA_FOV_MAX; fov++) {
     camera.fov = fov;
     camera.updateProjectionMatrix();
     // Only the distance limit matters here: did this fov make the office fit at all?
-    if (overviewFrame(OVERVIEW_MAX_SCALE, camera, width, height, free).fits) return overviewFrame(base, camera, width, height, free);
+    if (overviewFrame(OVERVIEW_MAX_SCALE, camera, width, height, free, compact).fits) return overviewFrame(base, camera, width, height, free, compact);
   }
-  return overviewFrame(base, camera, width, height, free);
+  return overviewFrame(base, camera, width, height, free, compact);
 }
 
 /** Last computed fit, for the `?stats` debug readout. */
@@ -215,16 +219,18 @@ export function CameraController() {
 
     // 1. Free-area fit: shift the projection centre and refit the last preset when the layout changes.
     const insets = store.viewInsets;
-    const key = `${width}x${height}|${insets.top},${insets.right},${insets.bottom},${insets.left}`;
+    const compact = !!store.officeSlot;
+    const key = `${width}x${height}|${insets.top},${insets.right},${insets.bottom},${insets.left}|${compact}`;
     if (key !== s.fitKey) {
       s.fitKey = key;
       const free = freeArea(width, height, insets);
-      s.fit = fitScale(height, free);
+      // In the corner the overview starts close and backs off only until the whole office fits.
+      s.fit = compact ? 0.5 : fitScale(height, free);
       const cx = free.left + free.width / 2;
       const cy = free.top + free.height / 2;
       camera.setViewOffset(width, height, width / 2 - cx, height / 2 - cy, width, height);
       camera.updateProjectionMatrix();
-      s.overview = fitFovAndOverview(s.fit, camera, width, height, free);
+      s.overview = fitFovAndOverview(s.fit, camera, width, height, free, compact);
       cameraFitInfo.fit = s.fit;
       cameraFitInfo.overviewFits = s.overview.fits;
       cameraFitInfo.fov = camera.fov;
@@ -328,8 +334,12 @@ export function CameraController() {
       minPolarAngle={CAMERA_LIMITS.minPolarAngle}
       maxPolarAngle={CAMERA_LIMITS.maxPolarAngle}
       zoomSpeed={0.8}
-      rotateSpeed={0.6}
-      panSpeed={0.8}
+      // Cảnh cố định hướng: không xoay; kéo chuột (trái hoặc phải) hay một ngón tay để trượt trên mặt sàn.
+      enableRotate={false}
+      screenSpacePanning={false}
+      mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
+      touches={{ ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN }}
+      panSpeed={1}
     />
   );
 }

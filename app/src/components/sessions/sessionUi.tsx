@@ -10,10 +10,10 @@ import { useWorldStore } from "@/state/useWorldStore";
 // prompts, tool output, paths) is rendered as a React text node, never as HTML.
 
 export const SESSION_STATUS_LABEL: Record<SessionInfo["status"], string> = {
-  running: "Running",
-  waiting: "Waiting",
-  idle: "Idle",
-  ended: "Ended",
+  running: "Đang chạy",
+  waiting: "Chờ anh",
+  idle: "Xong lượt",
+  ended: "Đã đóng",
 };
 
 const SESSION_STATUS_TONE: Record<SessionInfo["status"], string> = {
@@ -24,10 +24,10 @@ const SESSION_STATUS_TONE: Record<SessionInfo["status"], string> = {
 };
 
 const STATUS_HINT: Record<SessionInfo["status"], string> = {
-  running: "A turn is in progress",
-  waiting: "Needs permission or an answer",
-  idle: "The turn ended; waiting for the next prompt",
-  ended: "The session is closed",
+  running: "Claude đang làm",
+  waiting: "Cần anh cấp quyền hoặc trả lời",
+  idle: "Xong lượt, phiên vẫn mở chờ việc tiếp",
+  ended: "Phiên đã đóng; gửi tin mới sẽ mở lại",
 };
 
 export function SessionStatusChip({ status }: { status: SessionInfo["status"] }) {
@@ -41,12 +41,12 @@ export function SessionStatusChip({ status }: { status: SessionInfo["status"] })
 
 export function OwnerTag({ owner }: { owner: SessionInfo["owner"] }) {
   return owner === "web" ? (
-    <span className="inline-flex items-center gap-1 text-[11px] text-mist-300" title="Started or continued from this page">
-      <Globe size={11} aria-hidden /> Web
+    <span className="inline-flex items-center gap-1 text-[11px] text-mist-300" title="Mở hoặc tiếp tục từ văn phòng này (chạy ngầm)">
+      <Globe size={11} aria-hidden /> Văn phòng
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-[11px] text-mist-500" title="Running in a terminal; read-only here">
-      <Terminal size={11} aria-hidden /> Terminal
+    <span className="inline-flex items-center gap-1 text-[11px] text-mist-500" title="Phiên mở từ Claude Desktop hoặc terminal; gửi tin từ đây sẽ mở một nhánh mới">
+      <Terminal size={11} aria-hidden /> Claude Code
     </span>
   );
 }
@@ -124,11 +124,11 @@ export function basename(path: string): string {
 /** Wall-clock ms → "just now", "5m ago"… */
 export function ago(ms: number, now: number): string {
   const d = Math.max(0, (now - ms) / 1000);
-  if (d < 10) return "just now";
-  if (d < 60) return `${Math.floor(d)}s ago`;
-  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
-  if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
-  return `${Math.floor(d / 86400)}d ago`;
+  if (d < 10) return "vừa xong";
+  if (d < 60) return `${Math.floor(d)} giây trước`;
+  if (d < 3600) return `${Math.floor(d / 60)} phút trước`;
+  if (d < 86400) return `${Math.floor(d / 3600)} giờ trước`;
+  return `${Math.floor(d / 86400)} ngày trước`;
 }
 
 /** A wall clock that ticks every `ms`, for relative times (a few renders a minute of one small list). */

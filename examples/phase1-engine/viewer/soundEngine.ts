@@ -11,14 +11,28 @@ export type Cue =
 export type SoundMode = "simulation" | "live";
 
 /** Each speaker's own pitch (Hz), so you can tell who is talking without looking. */
-export const AGENT_PITCH: Record<AgentId, number> = { orion: 523.25, piper: 659.25, iris: 587.33, kai: 440, quinn: 698.46, rex: 392 };
+export const AGENT_PITCH: Record<AgentId, number> = {
+  orion: 523.25,
+  piper: 659.25,
+  iris: 587.33,
+  kai: 440,
+  quinn: 698.46,
+  rex: 392,
+  troly1: 783.99,
+  troly2: 880,
+  taichinh: 349.23,
+  quytrinh: 493.88,
+  gopy: 554.37,
+  chuyende: 329.63,
+  caitien: 415.3,
+};
 
 /**
  * Which cue an event plays, or null for silence.
  * Live mode keeps only what is worth interrupting you for: test results, the end of a turn, and Claude waiting on you.
  */
 export function cueFor(e: AgentEvent, mode: SoundMode): Cue | null {
-  const waitingForYou = e.agentId === "orion" && e.severity === "warning" && /^(Needs your permission|Claude Code needs you)/.test(e.message);
+  const waitingForYou = e.agentId === "orion" && e.severity === "warning" && /^(Cần anh cấp quyền|Claude cần anh|Needs your permission|Claude Code needs you)/.test(e.message);
   if (mode === "live") {
     if (waitingForYou) return "attention";
     switch (e.type) {

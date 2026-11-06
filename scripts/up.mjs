@@ -15,7 +15,7 @@
 import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { APP, ENGINE, NPM, bold, buildStale, cyan, dim, green, openBrowser, portFree, red, run, step, supervise, tailscaleSelf, tailscaleServe, yellow } from "./lib.mjs";
+import { APP, ENGINE, NPM, ROOT, bold, buildStale, freeOwnPort, killTree, cyan, dim, green, openBrowser, portFree, red, run, step, supervise, tailscaleSelf, tailscaleServe, yellow } from "./lib.mjs";
 
 console.log(dim(`[${new Date().toISOString()}] npm run up starting (pid ${process.pid})`));
 const argv = process.argv.slice(2);
@@ -66,6 +66,10 @@ if (!existsSync(join(APP, "node_modules")) || !existsSync(join(ENGINE, "node_mod
 if (port !== 8787) console.log(yellow(`! The app build connects to ws://127.0.0.1:8787; with --port ${port} open the app through the server's proxy link instead.`));
 
 for (const [p, what] of [[port, "world server"], [appPort, "app"], ...(trustLogin ? [[tailnetPort, "tailscale serve listener"]] : [])]) {
+  if (!(await portFree(p)) && freeOwnPort(p, ROOT)) {
+    console.log(yellow(`Port ${p} (${what}) was held by a copy of this office left over from an earlier run; stopped it.`));
+    await new Promise((r) => setTimeout(r, 1500));
+  }
   if (!(await portFree(p))) {
     console.error(red(`Port ${p} (${what}) is already in use. Stop whatever runs there, or pick another with ${p === port ? "--port" : "--app-port"}.`));
     process.exit(1);
@@ -89,7 +93,10 @@ if (trustLogin) serverArgs.push("--trust-tailscale", trustLogin, "--tailscale-po
 serverArgs.push(...passThrough);
 
 step("Starting");
-const server = supervise("server", cyan, NPM, serverArgs, ENGINE);
+// The folder new sessions from the web UI start in: written by `npm run setup -- --project <folder>`.
+const workdirFile = join(homedir(), ".aaw", "workdir");
+const workdir = existsSync(workdirFile) ? readFileSync(workdirFile, "utf8").trim() : "";
+const server = supervise("server", cyan, NPM, serverArgs, ENGINE, workdir ? { AAW_WORKDIR: workdir } : {});
 const app = supervise("app", green, NPM, ["run", "-s", "start:live"], APP, { PORT: String(appPort) });
 const children = [server, app];
 
@@ -97,7 +104,8 @@ let stopping = false;
 const stop = (code = 0) => {
   if (stopping) return;
   stopping = true;
-  for (const c of children) if (c.exitCode === null) c.kill("SIGINT");
+  // The whole tree: on Windows a plain kill would leave the other one's node running and holding its port.
+  for (const c of children) killTree(c);
   setTimeout(() => process.exit(code), 1500).unref();
 };
 for (const c of children) {

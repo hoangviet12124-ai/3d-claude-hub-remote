@@ -4,7 +4,7 @@ import type { AudioState, SoundMode, SoundSettings } from "@/audio/soundEngine";
 import { SOUND_STORAGE_KEY, defaultSoundSettings, parseSoundSettings, serializeSoundSettings } from "@/audio/soundEngine";
 import type { AgentEvent } from "@/events/eventTypes";
 import { appendEvent } from "@/events/eventStore";
-import type { CommLink, LiveWorldState, SimulationStatus, WorldSnapshot } from "@/integrations/AgentBackend";
+import type { CommLink, LiveWorldState, OrgState, SimulationStatus, WorldSnapshot } from "@/integrations/AgentBackend";
 import type { ConnectionState } from "@/integrations/WebSocketAgentBackend";
 import { SIM_CONFIG } from "@/simulation/simulationConfig";
 import type { Task } from "@/tasks/taskTypes";
@@ -35,6 +35,13 @@ export interface CameraRequest {
   preset?: CameraPresetId;
   focus?: { x: number; y: number; z: number };
   distance?: number;
+}
+
+export interface OfficeSlot {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 }
 
 export interface ViewInsets {
@@ -75,6 +82,8 @@ export interface WorldState {
    * kept while nothing in it changes, so the session switcher does not re-render with progress.
    */
   live: LiveWorldState | null;
+  /** Live sources: who in Tổ giúp việc is working now, for the org chart. Same object while nothing changes. */
+  org: OrgState | null;
   /** Every event received, newest last, capped at FEED_CAP. Selectors in events/eventStore filter it. */
   events: AgentEvent[];
   backend: BackendInfo;
@@ -86,6 +95,15 @@ export interface WorldState {
   hovered: string | null;
   followAgentId: AgentId | null;
   dialog: { open: boolean; preferredAgentId: AgentId | null };
+  /** The meeting board (Bảng họp): a large window with the agents' reports and the chat with the Manager. */
+  board: boolean;
+  /** The board docked at the side (chat only), so the office stays visible and draggable beside it. */
+  boardDock: boolean;
+  /**
+   * Where the board leaves room for a small view of the office (viewport CSS pixels), or null. While set, the
+   * 3D canvas is drawn in that box, over the board, instead of filling the screen.
+   */
+  officeSlot: OfficeSlot | null;
   quality: Quality;
   qualitySource: QualitySource;
   /** `prefers-reduced-motion: reduce`, kept live by AppShell. The 3D layer damps decorative motion with it. */
@@ -116,6 +134,9 @@ export interface WorldState {
   setFollow: (id: AgentId | null) => void;
   openDialog: (preferredAgentId?: AgentId | null) => void;
   closeDialog: () => void;
+  setBoard: (open: boolean) => void;
+  setBoardDock: (dock: boolean) => void;
+  setOfficeSlot: (slot: OfficeSlot | null) => void;
   setQuality: (quality: Quality, source: QualitySource) => void;
   setReducedMotion: (reduced: boolean) => void;
   setOverlays: (patch: Partial<WorldState["overlays"]>) => void;
@@ -148,7 +169,7 @@ function significantSignature(s: WorldSnapshot): string {
   }
   sig += "|";
   for (const l of s.links) sig += `${l.id};`;
-  return `${sig}|${liveSignature(s.live)}`;
+  return `${sig}|${liveSignature(s.live)}|${orgOf(s).sig}`;
 }
 
 function liveSignature(live: LiveWorldState | undefined): string {
@@ -159,6 +180,15 @@ function liveSignature(live: LiveWorldState | undefined): string {
 }
 
 let lastLive: { sig: string; value: LiveWorldState | null } = { sig: "", value: null };
+
+let lastOrg: { sig: string; value: OrgState | null } = { sig: "", value: null };
+
+/** The org chart, compared by content so an unchanged chart keeps its object (and its subscribers stay quiet). */
+function orgOf(s: WorldSnapshot): { sig: string; value: OrgState | null } {
+  const sig = s.org ? JSON.stringify(s.org) : "";
+  if (sig !== lastOrg.sig) lastOrg = { sig, value: s.org ?? null };
+  return lastOrg;
+}
 
 function liveOf(s: WorldSnapshot): LiveWorldState | null {
   const sig = liveSignature(s.live);
@@ -186,8 +216,8 @@ function now(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
-function mirrorOf(s: WorldSnapshot): Pick<WorldState, "simStatus" | "speed" | "clock" | "agents" | "tasks" | "links" | "live"> {
-  return { simStatus: s.status, speed: s.speed, clock: s.clock, agents: s.agents, tasks: s.tasks, links: s.links, live: liveOf(s) };
+function mirrorOf(s: WorldSnapshot): Pick<WorldState, "simStatus" | "speed" | "clock" | "agents" | "tasks" | "links" | "live" | "org"> {
+  return { simStatus: s.status, speed: s.speed, clock: s.clock, agents: s.agents, tasks: s.tasks, links: s.links, live: liveOf(s), org: orgOf(s).value };
 }
 
 function readStorage(key: string): string | null {
@@ -223,6 +253,7 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   tasks: [],
   links: [],
   live: null,
+  org: null,
   events: [],
   backend: INITIAL_BACKEND,
 
@@ -232,6 +263,9 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   hovered: null,
   followAgentId: null,
   dialog: { open: false, preferredAgentId: null },
+  board: false,
+  boardDock: false,
+  officeSlot: null,
   quality: "high",
   qualitySource: "auto",
   reducedMotion: false,
@@ -302,7 +336,7 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
 
   setBackend: (patch) => set((st) => ({ backend: { ...st.backend, ...patch } })),
 
-  setTab: (tab) => set({ tab }),
+  setTab: (tab) => set((st) => ({ tab, board: tab === "sessions" ? false : st.board })),
 
   selectAgent: (id, options) => {
     set((st) => ({ selectedAgentId: id, tab: options?.tab === false ? st.tab : id ? "agents" : st.tab }));
@@ -323,6 +357,15 @@ export const useWorldStore = create<WorldState>()((set, get) => ({
   openDialog: (preferredAgentId = null) => set({ dialog: { open: true, preferredAgentId } }),
 
   closeDialog: () => set({ dialog: { open: false, preferredAgentId: null } }),
+  // The board shows the Sessions view itself; the side panel leaves that tab so one session view is mounted at a time.
+  setBoard: (open) => set((st) => ({ board: open, tab: open && st.tab === "sessions" ? "overview" : st.tab })),
+  setBoardDock: (boardDock) => set({ boardDock }),
+  setOfficeSlot: (slot) =>
+    set((st) => {
+      const a = st.officeSlot;
+      if (a === slot || (a && slot && a.left === slot.left && a.top === slot.top && a.width === slot.width && a.height === slot.height)) return {};
+      return { officeSlot: slot };
+    }),
 
   setQuality: (quality, qualitySource) => set({ quality, qualitySource }),
 
