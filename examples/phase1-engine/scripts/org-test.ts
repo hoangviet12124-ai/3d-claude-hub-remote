@@ -73,6 +73,8 @@ check("a new prompt clears the error", org.state(running).manager.state === "on"
 console.log("\nBefore any hook");
 const early = new OrgTracker({ now, cwd: "/vault", listAgents: (cwd) => (cwd === "/vault" ? ["thu-thu"] : []) });
 check("the office's work folder gives the departments before the first hook", early.state([]).agents.join(",") === "thu-thu");
+early.ingest({ hook_event_name: "PreToolUse", session_id: "E", cwd: "/elsewhere", tool_name: "Bash" });
+check("a hook from another folder does not hide them", early.state([]).agents.join(",") === "thu-thu");
 
 console.log("\nPrompts hidden");
 const quiet = new OrgTracker({ now, showPrompts: false });

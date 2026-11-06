@@ -47,11 +47,21 @@ const { values } = parseArgs({
 const here = dirname(fileURLToPath(import.meta.url));
 const viewerFile = join(here, "..", "viewer", "dist", "fragment.html");
 
-/** Agent file names in <cwd>/.claude/agents (the org chart builds its departments from them). */
+/**
+ * Agent file names in .claude/agents of `cwd` or the nearest folder above it that has one (the org chart builds its
+ * departments from them). A hook's cwd follows the session's `cd`, so it is often a subfolder of the vault.
+ */
 function agentFiles(cwd: string): string[] {
-  const dir = join(cwd, ".claude", "agents");
-  if (!isAbsolute(cwd) || !existsSync(dir)) return [];
-  return readdirSync(dir).filter((f) => f.toLowerCase().endsWith(".md")).map((f) => f.slice(0, -3));
+  if (!isAbsolute(cwd)) return [];
+  let dir = cwd;
+  for (let i = 0; i < 12; i++) {
+    const agents = join(dir, ".claude", "agents");
+    if (existsSync(agents)) return readdirSync(agents).filter((f) => f.toLowerCase().endsWith(".md")).map((f) => f.slice(0, -3));
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return [];
 }
 
 let backend: AgentBackend;

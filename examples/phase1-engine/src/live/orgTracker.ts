@@ -46,6 +46,8 @@ const STALE_MS = 3 * 60 * 60_000;
 /** How long the agent list of a folder is cached (ms). */
 const AGENTS_TTL_MS = 60_000;
 const MAX_MOVES = 40;
+/** Work folders remembered for the agent list. */
+const MAX_CWDS = 8;
 
 interface Run extends OrgRun {
   sessionId: string;
@@ -71,21 +73,24 @@ export class OrgTracker {
   private moves: OrgMove[] = [];
   private seq = 0;
   private made = 0;
-  private cwd = "";
+  /** Work folders seen (the office's workdir, then every hook's cwd), newest last. The chart lists the agents of all. */
+  private cwds: string[] = [];
   private agentCache = new Map<string, { at: number; names: string[] }>();
   private opts: Required<Omit<OrgTrackerOptions, "cwd">>;
 
   constructor(options: OrgTrackerOptions = {}) {
     const { cwd, ...rest } = options;
     this.opts = { now: Date.now, showPrompts: true, listAgents: () => [], ...rest };
-    this.cwd = cwd ?? "";
+    if (cwd) this.cwds.push(cwd);
   }
 
   /** Reads one hook. Returns true when the chart changed. */
   ingest(p: OrgHook): boolean {
     const sid = p.session_id ?? "default";
     const now = this.opts.now();
-    if (p.cwd) this.cwd = p.cwd;
+    if (p.cwd && this.cwds.at(-1) !== p.cwd) {
+      this.cwds = [...this.cwds.filter((c) => c !== p.cwd), p.cwd].slice(-MAX_CWDS);
+    }
     switch (p.hook_event_name) {
       case "UserPromptSubmit": {
         this.failed.delete(sid);
@@ -175,7 +180,7 @@ export class OrgTracker {
     else if (this.failed.size > 0) state = "err";
     const task = state === "err" ? [...this.failed.values()].at(-1)!.text : this.opts.showPrompts ? (busy[0]?.title ?? "") : "";
 
-    const agents = new Set(this.agentsOf(this.cwd));
+    const agents = new Set(this.cwds.flatMap((c) => this.agentsOf(c)));
     for (const r of runs) agents.add(r.agentType);
     return { agents: [...agents].sort(), manager: { state, task }, runs, moves: this.moves.slice() };
   }
