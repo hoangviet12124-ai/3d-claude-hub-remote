@@ -254,8 +254,11 @@ export function OrgBoard({ variant }: { variant: "full" | "compact" | "wall" }) 
             <b className={counts.err ? "err" : undefined}>{counts.err}</b> error
           </span>
         </header>
-        <div className="ob-wall-board">{stage}</div>
-        <ul className="ob-ticker">
+        <div className="ob-wall-board">
+          {stage}
+          <aside className="ob-wall-side">
+            <h2>Activity</h2>
+            <ul className="ob-ticker">
           {ticker.length === 0 ? <li className="idle">--:--:-- - Standby - no activity yet</li> : null}
           {ticker.map((m) => {
             const [who, what] = wallLine(m);
@@ -265,7 +268,9 @@ export function OrgBoard({ variant }: { variant: "full" | "compact" | "wall" }) 
               </li>
             );
           })}
-        </ul>
+            </ul>
+          </aside>
+        </div>
       </div>
     );
   }

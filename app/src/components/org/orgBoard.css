@@ -534,7 +534,7 @@
   flex-direction: column;
   gap: 10px;
   /* The Windows taskbar covers the bottom of a wallpaper: keep the ticker above it. */
-  padding: 18px 28px 84px;
+  padding: 18px 28px 64px;
   overflow: hidden;
   background:
     radial-gradient(1100px 600px at 15% 0%, #2a3a6e, transparent 70%),
@@ -573,12 +573,34 @@
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  gap: 20px;
+  /* Leave the left edge to the desktop icons. */
+  padding-left: 190px;
 }
 .ob-wall-board .ob-canvas {
   flex: 1 1 auto;
   background-color: transparent;
   background-image: radial-gradient(circle, var(--ob-dots) 1.1px, transparent 1.4px);
   background-size: 20px 20px;
+}
+/* Activity sits in the empty band at the right of the chart, halfway down. */
+.ob-wall-side {
+  flex: 0 0 330px;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--ob-line);
+  border-radius: 10px;
+  background: rgba(20, 28, 54, 0.55);
+}
+.ob-wall-side h2 {
+  margin: 0;
+  font: 600 10.5px var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ob-text-3);
 }
 .ob-ticker {
   list-style: none;
@@ -589,7 +611,8 @@
   gap: 2px;
   font: 400 12px var(--font-mono);
   color: var(--ob-text-3);
-  min-height: 4.6em;
+  min-height: 6em;
+  line-height: 1.45;
 }
 .ob-ticker .idle {
   opacity: 0.7;
