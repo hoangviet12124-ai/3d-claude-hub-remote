@@ -525,3 +525,80 @@
   color: var(--ob-text-2);
   font-size: 13.5px;
 }
+
+/* The desktop wallpaper (Lively, /so-do?mode=wall): the whole screen, no scrolling, nothing to read but lamps. */
+.ob-wall {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 28px 16px;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 600px at 15% 0%, #2a3a6e, transparent 70%),
+    radial-gradient(1100px 700px at 100% 100%, #33285e, transparent 70%),
+    var(--ob-bg);
+}
+.ob-wall-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  font: 500 12px var(--font-mono);
+  letter-spacing: 0.12em;
+  color: var(--ob-text-3);
+}
+.ob-wall-title {
+  font-weight: 600;
+  color: var(--ob-text-2);
+}
+.ob-wall-meters b {
+  margin: 0 6px 0 16px;
+  font-size: 15px;
+  color: var(--ob-text-3);
+}
+.ob-wall-meters b.on {
+  color: var(--ob-run);
+}
+.ob-wall-meters b.wait {
+  color: var(--ob-warn);
+}
+.ob-wall-meters b.err {
+  color: var(--ob-bad);
+}
+.ob-wall-board {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.ob-wall-board .ob-canvas {
+  flex: 1 1 auto;
+  background-color: transparent;
+  background-image: radial-gradient(circle, var(--ob-dots) 1.1px, transparent 1.4px);
+  background-size: 20px 20px;
+}
+.ob-ticker {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: 400 12px var(--font-mono);
+  color: var(--ob-text-3);
+  min-height: 4.6em;
+}
+.ob-ticker li:first-child {
+  color: var(--ob-text-2);
+}
+.ob-ticker em {
+  font-style: normal;
+  color: var(--ob-run);
+}
+.ob-ticker li.k-ret em {
+  color: var(--ob-ret);
+}
+.ob-ticker li.k-bad em {
+  color: var(--ob-bad);
+}

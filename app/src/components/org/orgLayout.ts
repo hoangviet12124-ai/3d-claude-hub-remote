@@ -19,6 +19,8 @@ interface Dept {
   label: string;
   head: string;
   staff: string;
+  /** English names, for the wallpaper (nobody passing by should read what the team does). */
+  en: [label: string, head: string, staff: string];
   icon: IconName;
   acc: string;
   match: RegExp;
@@ -26,15 +28,20 @@ interface Dept {
 
 /** Order matters: the first match wins (quy-trinh before tai-chinh, so "kiem-toan-tai-chinh-quy-trinh" lands right). */
 const DEPTS: Dept[] = [
-  { key: "xdcb", label: "Kiểm toán XDCB", head: "Trưởng phòng", staff: "Kiểm toán viên", icon: "build", acc: "#60a5fa", match: /xdcb/ },
-  { key: "quytrinh", label: "KT tài chính & quy trình", head: "Trưởng phòng", staff: "Chuyên viên", icon: "flow", acc: "#facc15", match: /quy-trinh/ },
-  { key: "tc", label: "Tài chính", head: "Trưởng nhóm", staff: "Chuyên viên", icon: "coins", acc: "#f472b6", match: /tai-chinh/ },
-  { key: "gopy", label: "Góp ý văn bản", head: "Trưởng phòng", staff: "Chuyên viên", icon: "pen", acc: "#e879f9", match: /gop-y/ },
-  { key: "kho", label: "Kho dữ liệu chung", head: "Thủ thư", staff: "Số hóa", icon: "db", acc: "#2dd4bf", match: /thu-thu|so-hoa/ },
-  { key: "nc", label: "Nghiên cứu & Phương pháp", head: "Trưởng phòng", staff: "Nghiên cứu viên", icon: "flask", acc: "#a78bfa", match: /nghien-cuu|phuong-phap|chuyen-de/ },
-  { key: "rnd", label: "R&D", head: "Thư ký R&D", staff: "Kỹ sư", icon: "bulb", acc: "#fb923c", match: /rnd|r-d|cai-tien|thu-ky/ },
+  { key: "xdcb", label: "Kiểm toán XDCB", head: "Trưởng phòng", staff: "Kiểm toán viên", en: ["Construction Audit", "Lead", "Auditor"], icon: "build", acc: "#60a5fa", match: /xdcb/ },
+  { key: "quytrinh", label: "KT tài chính & quy trình", head: "Trưởng phòng", staff: "Chuyên viên", en: ["Process Audit", "Lead", "Analyst"], icon: "flow", acc: "#facc15", match: /quy-trinh/ },
+  { key: "tc", label: "Tài chính", head: "Trưởng nhóm", staff: "Chuyên viên", en: ["Finance", "Lead", "Analyst"], icon: "coins", acc: "#f472b6", match: /tai-chinh/ },
+  { key: "gopy", label: "Góp ý văn bản", head: "Trưởng phòng", staff: "Chuyên viên", en: ["Doc Review", "Lead", "Reviewer"], icon: "pen", acc: "#e879f9", match: /gop-y/ },
+  { key: "kho", label: "Kho dữ liệu chung", head: "Thủ thư", staff: "Số hóa", en: ["Data Library", "Librarian", "Digitizer"], icon: "db", acc: "#2dd4bf", match: /thu-thu|so-hoa/ },
+  { key: "nc", label: "Nghiên cứu & Phương pháp", head: "Trưởng phòng", staff: "Nghiên cứu viên", en: ["Research & Methods", "Lead", "Researcher"], icon: "flask", acc: "#a78bfa", match: /nghien-cuu|phuong-phap|chuyen-de/ },
+  { key: "rnd", label: "R&D", head: "Thư ký R&D", staff: "Kỹ sư", en: ["R&D", "Coordinator", "Engineer"], icon: "bulb", acc: "#fb923c", match: /rnd|r-d|cai-tien|thu-ky/ },
 ];
-const OTHER: Dept = { key: "khac", label: "Trợ lý khác", head: "Trợ lý", staff: "Trợ lý", icon: "more", acc: "#94a3b8", match: /$^/ };
+const OTHER: Dept = { key: "khac", label: "Trợ lý khác", head: "Trợ lý", staff: "Trợ lý", en: ["Assistants", "Assistant", "Assistant"], icon: "more", acc: "#94a3b8", match: /$^/ };
+/** Set by layoutOrg for the call in progress: English words, no task texts. */
+let EN = false;
+const w = (vi: string, en: string) => (EN ? en : vi);
+const nameOf = (d: Dept) => ({ label: w(d.label, d.en[0]), head: w(d.head, d.en[1]), staff: w(d.staff, d.en[2]) });
+
 const QA_MATCH = /^qa$|^qa-|-qa$|kiem-tra/;
 const SOHOA_MATCH = /so-hoa/;
 
@@ -47,8 +54,14 @@ export function unitOf(agentType: string): string {
 }
 
 /** A readable name for an agent type: its department ("Kiểm toán XDCB"), or the file name when it has none. */
-export function displayName(agentType: string): string {
+export function displayName(agentType: string, english = false): string {
   const u = unitOf(agentType);
+  if (english) {
+    if (u === "qa") return "QA";
+    if (u === "sohoa") return "Digitizer";
+    if (u === "kho") return "Librarian";
+    return ([...DEPTS, OTHER].find((x) => x.key === u) ?? OTHER).en[0];
+  }
   if (u === "qa") return "QA";
   if (u === "sohoa") return "Số hóa";
   if (u === "kho") return "Thủ thư";
@@ -140,12 +153,14 @@ const curve = (x1: number, y1: number, x2: number, y2: number) => {
 function statusOf(state: OrgLamp, task: string, idle: string, raw = false): string {
   if (state === "off") return idle;
   if (raw) return task;
-  if (state === "wait") return task ? `chờ duyệt: ${task}` : "chờ duyệt";
-  if (state === "err") return task || "lỗi";
-  return task || "đang làm";
+  if (state === "wait") return task ? `chờ duyệt: ${task}` : w("chờ duyệt", "waiting");
+  if (state === "err") return task || w("lỗi", "error");
+  return task || w("đang làm", "working");
 }
 
-const STATE_TEXT: Record<Lamp, string> = { off: "rảnh", on: "đang làm", wait: "chờ duyệt", err: "lỗi", done: "xong" };
+const STATE_VI: Record<Lamp, string> = { off: "rảnh", on: "đang làm", wait: "chờ duyệt", err: "lỗi", done: "xong" };
+const STATE_EN: Record<Lamp, string> = { off: "idle", on: "working", wait: "waiting", err: "error", done: "done" };
+const stateWord = (l: Lamp) => (EN ? STATE_EN : STATE_VI)[l];
 
 /**
  * One unit (a department head, Số hóa, QA): one run lights the card with its task; two or more light it with
@@ -154,16 +169,21 @@ const STATE_TEXT: Record<Lamp, string> = { off: "rảnh", on: "đang làm", wait
 function unitLamp(runs: OrgRun[]): { state: OrgLamp; task: string; raw: boolean } {
   const state = worst(runs);
   if (runs.length === 0) return { state, task: "", raw: false };
-  if (runs.length === 1) return { state, task: runs[0]!.task || runs[0]!.agentType, raw: false };
+  if (runs.length === 1) return { state, task: EN ? "" : runs[0]!.task || runs[0]!.agentType, raw: false };
   const n = runs.length;
   const some = runs.filter((r) => r.state === state).length;
-  if (state === "wait") return { state, task: `${some}/${n} chờ duyệt`, raw: true };
-  if (state === "err") return { state, task: `${some}/${n} lỗi`, raw: true };
-  return { state, task: `${n} việc cùng lúc`, raw: true };
+  if (state === "wait") return { state, task: `${some}/${n} ${w("chờ duyệt", "waiting")}`, raw: true };
+  if (state === "err") return { state, task: `${some}/${n} ${w("lỗi", "error")}`, raw: true };
+  return { state, task: w(`${n} việc cùng lúc`, `${n} jobs`), raw: true };
 }
 
 /** `flash`: cards and dots that just finished (lit green for a moment). */
-export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set()): OrgLayout {
+export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set(), english = false): OrgLayout {
+  EN = english;
+  if (english) {
+    // The wallpaper never shows what the work is: no task text, no error text.
+    org = { ...org, manager: { ...org.manager, task: "" }, runs: org.runs.map((r) => ({ ...r, task: "" })) };
+  }
   const byUnit = new Map<string, OrgRun[]>();
   for (const r of org.runs) {
     const u = unitOf(r.agentType);
@@ -186,18 +206,18 @@ export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set())
   // Boss and the Manager sit in the middle of the rows; QA hangs below the Manager.
   const midY = Math.round(height / 2 - CARD_H / 2) - (haveUnit.has("qa") ? 50 : 0);
   const boss: CardNode = {
-    kind: "card", id: "boss", x: 30, y: midY, w: 140, title: "Boss", icon: "boss", acc: "#fcd34d", idle: "giao việc",
+    kind: "card", id: "boss", x: 30, y: midY, w: 140, title: "Boss", icon: "boss", acc: "#fcd34d", idle: w("giao việc", "ready"),
     state: flash.has("boss:on") ? "on" : flash.has("boss") ? "done" : "off", status: "", tip: "", ports: { in: false, out: true },
   };
-  boss.status = boss.state === "on" ? "giao việc" : boss.state === "done" ? "nhận kết quả" : boss.idle;
+  boss.status = boss.state === "on" ? w("giao việc", "assigning") : boss.state === "done" ? w("nhận kết quả", "received") : boss.idle;
   boss.tip = `Boss: ${boss.status}`;
   const mState = flashed("mgr", org.manager.state);
   const mgr: CardNode = {
-    kind: "card", id: "mgr", x: 230, y: midY, w: 170, title: "Manager", icon: "hub", acc: "#5fd4ff", idle: "rảnh",
-    state: mState, status: mState === "done" ? "xong" : statusOf(org.manager.state, org.manager.task, "rảnh"), tip: "",
+    kind: "card", id: "mgr", x: 230, y: midY, w: 170, title: "Manager", icon: "hub", acc: "#5fd4ff", idle: w("rảnh", "idle"),
+    state: mState, status: mState === "done" ? w("xong", "done") : statusOf(org.manager.state, org.manager.task, w("rảnh", "idle")), tip: "",
     ports: { in: true, out: rows > 0, down: haveUnit.has("qa") },
   };
-  mgr.tip = `Manager: ${STATE_TEXT[mgr.state]}${org.manager.task ? ` · ${org.manager.task}` : ""}`;
+  mgr.tip = `Manager: ${stateWord(mgr.state)}${org.manager.task ? ` · ${org.manager.task}` : ""}`;
   cards.push(boss, mgr);
   edges.push({ key: "boss>mgr", from: "boss", to: "mgr", d: curve(170, midY + 28, 230, midY + 28), acc: mgr.acc, sub: false, live: lit(mgr.state) });
 
@@ -206,8 +226,8 @@ export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set())
     const l = unitLamp(runs);
     const state = flashed("qa", l.state);
     cards.push({
-      kind: "card", id: "qa", x: 245, y: midY + 148, w: 140, title: "QA", icon: "shield", acc: "#a3e635", idle: "rảnh", state,
-      status: state === "done" ? "xong" : statusOf(l.state, l.task, "rảnh", l.raw), tip: `QA: ${STATE_TEXT[state]}${l.task ? ` · ${l.task}` : ""}`,
+      kind: "card", id: "qa", x: 245, y: midY + 148, w: 140, title: "QA", icon: "shield", acc: "#a3e635", idle: w("rảnh", "idle"), state,
+      status: state === "done" ? w("xong", "done") : statusOf(l.state, l.task, w("rảnh", "idle"), l.raw), tip: `QA: ${stateWord(state)}${l.task ? ` · ${l.task}` : ""}`,
       ports: { in: false, out: false, up: true },
     });
     edges.push({ key: "mgr>qa", from: "mgr", to: "qa", d: `M315,${midY + CARD_H} C315,${midY + 98} 315,${midY + 108} 315,${midY + 148}`, acc: "#a3e635", sub: true, live: lit(state) });
@@ -221,9 +241,9 @@ export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set())
     const head = unitLamp(headRuns);
     const headState = flashed(dept.key, head.state);
     const headCard: CardNode = {
-      kind: "card", id: dept.key, x: 490, y: yc - 22, w: 170, title: dept.head, icon: dept.icon, acc: dept.acc, idle: "rảnh",
-      state: headState, status: headState === "done" ? "xong" : statusOf(head.state, head.task, "rảnh", head.raw),
-      tip: `${dept.label}: ${STATE_TEXT[headState]}${head.task ? ` · ${head.task}` : ""}`,
+      kind: "card", id: dept.key, x: 490, y: yc - 22, w: 170, title: nameOf(dept).head, icon: dept.icon, acc: dept.acc, idle: w("rảnh", "idle"),
+      state: headState, status: headState === "done" ? w("xong", "done") : statusOf(head.state, head.task, w("rảnh", "idle"), head.raw),
+      tip: `${nameOf(dept).label}: ${stateWord(headState)}${head.task ? ` · ${head.task}` : ""}`,
       group: dept.key, ports: { in: true, out: true },
     };
     cards.push(headCard);
@@ -231,20 +251,20 @@ export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set())
     // Dots hang off Số hóa in the Kho row, off the head elsewhere.
     let parent = headCard;
     let staffRuns = headRuns;
-    let staff = dept.staff;
+    let staff = nameOf(dept).staff;
     let sx = 760;
     if (hasSohoa) {
       const s = unitLamp(sohoaRuns);
       const st = flashed("sohoa", s.state);
       parent = {
-        kind: "card", id: "sohoa", x: 720, y: yc - 22, w: 150, title: "Số hóa", icon: "scan", acc: "#22d3ee", idle: "rảnh", state: st,
-        status: st === "done" ? "xong" : statusOf(s.state, s.task, "rảnh", s.raw), tip: `Số hóa: ${STATE_TEXT[st]}${s.task ? ` · ${s.task}` : ""}`,
+        kind: "card", id: "sohoa", x: 720, y: yc - 22, w: 150, title: w("Số hóa", "Digitizer"), icon: "scan", acc: "#22d3ee", idle: w("rảnh", "idle"), state: st,
+        status: st === "done" ? w("xong", "done") : statusOf(s.state, s.task, w("rảnh", "idle"), s.raw), tip: `${w("Số hóa", "Digitizer")}: ${stateWord(st)}${s.task ? ` · ${s.task}` : ""}`,
         group: dept.key, ports: { in: true, out: true },
       };
       cards.push(parent);
       edges.push({ key: "kho>sohoa", from: "kho", to: "sohoa", d: curve(660, yc + 6, 720, yc + 6), acc: parent.acc, sub: false, live: lit(st) });
       staffRuns = sohoaRuns;
-      staff = "Số hóa";
+      staff = w("Số hóa", "Digitizer");
       sx = 930;
     } else if (dept.key === "kho") {
       staffRuns = []; // Thủ thư alone: several runs show on the card ("N việc cùng lúc"), there is no staff column.
@@ -252,7 +272,7 @@ export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set())
     }
 
     const anyLit = [headCard.state, parent.state].some((s) => s !== "off" && s !== "done") || staffRuns.length > 0;
-    groups.push({ key: dept.key, x: 470, y: yc - 54, w: 615, h: 108, label: dept.label, acc: dept.acc, busy: anyLit });
+    groups.push({ key: dept.key, x: 470, y: yc - 54, w: 615, h: 108, label: nameOf(dept).label, acc: dept.acc, busy: anyLit });
     const intoDept = hasSohoa && !lit(headCard.state) ? lit(parent.state) : lit(headCard.state);
     edges.push({ key: `mgr>${dept.key}`, from: "mgr", to: dept.key, d: curve(400, midY + 28, 490, yc + 6), acc: dept.acc, sub: false, live: intoDept });
 
@@ -266,10 +286,10 @@ export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set())
       let state: Lamp = run ? run.state : "off";
       if (overflow) state = worst(shown.slice(DOTS - 1));
       if (state === "off" && flash.has(id)) state = "done";
-      const label = overflow ? `${overflow} việc nữa` : run ? run.task || run.agentType : `${staff} ${j + 1}`;
+      const label = overflow ? w(`${overflow} việc nữa`, `+${overflow} more`) : run ? run.task || (EN ? `${staff} ${j + 1}` : run.agentType) : `${staff} ${j + 1}`;
       dots.push({
-        kind: "dot", id, cx: sx, cy, num: overflow ? `+${overflow}` : String(j + 1), label: state === "err" && run ? `Lỗi · ${label}` : label,
-        acc: parent.acc, state, group: dept.key, tip: run ? `${run.agentType}: ${STATE_TEXT[state]}${run.task ? ` · ${run.task}` : ""}` : `${staff} ${j + 1}: rảnh`,
+        kind: "dot", id, cx: sx, cy, num: overflow ? `+${overflow}` : String(j + 1), label: state === "err" && run ? `${w("Lỗi", "Error")} · ${label}` : label,
+        acc: parent.acc, state, group: dept.key, tip: run ? `${EN ? staff : run.agentType}: ${stateWord(state)}${run.task ? ` · ${run.task}` : ""}` : `${staff} ${j + 1}: ${stateWord("off")}`,
       });
       edges.push({ key: `${parent.id}>${id}`, from: parent.id, to: id, d: curve(parent.x + parent.w, yc + 6, sx - 13, cy), acc: parent.acc, sub: false, live: lit(state) });
     }

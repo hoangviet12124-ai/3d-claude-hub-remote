@@ -42,5 +42,14 @@ check("a Số hóa run lights Số hóa and the line into Kho", l.cards.find((c)
 l = layoutOrg(base, new Set(["xdcb"]));
 check("a report flashes the card green", l.cards.find((c) => c.id === "xdcb")!.state === "done");
 
+console.log("\nWallpaper (English, no task text)");
+l = layoutOrg({ ...base, manager: { state: "on", task: "Rà hồ sơ bí mật" }, runs: [run("a", "truong-phong-xdcb", "Hồ sơ bí mật"), run("b", "truong-phong-xdcb", "Khác bí mật")] }, new Set(), true);
+const text = JSON.stringify([l.cards, l.dots, l.groups]);
+check("no task text on the wallpaper", !text.includes("bí mật"), text.slice(0, 200));
+check("no Vietnamese words on the wallpaper", !/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(text), text.match(/"[^"]*[ảạđờữựệàáốớ][^"]*"/)?.[0] ?? "");
+check("departments in English", l.groups[0]!.label === "Construction Audit" && displayName("so-hoa", true) === "Digitizer");
+l = layoutOrg(base);
+check("the normal chart stays Vietnamese", l.groups[0]!.label === "Kiểm toán XDCB");
+
 console.log(failures === 0 ? "\nAll org layout checks passed." : `\n${failures} org layout check(s) failed.`);
 process.exitCode = failures === 0 ? 0 : 1;

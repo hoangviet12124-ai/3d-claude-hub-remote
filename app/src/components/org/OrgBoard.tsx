@@ -125,11 +125,21 @@ const LOG_KIND: Record<OrgMove["kind"], string> = { prompt: "k-go", assign: "k-g
 const friendlyText = (m: OrgMove) => (m.agentType ? m.text.split(m.agentType).join(displayName(m.agentType)) : m.text);
 const clock = (ms: number) => new Date(ms).toLocaleTimeString("vi-VN", { hour12: false });
 
-export function OrgBoard({ variant }: { variant: "full" | "compact" }) {
+/** The wallpaper's ticker: time, who, what happened. Never the task itself. */
+function wallLine(m: OrgMove): [who: string, what: string] {
+  if (m.kind === "prompt") return ["Manager", "Assigned"];
+  if (m.kind === "answer") return ["Manager", "Done"];
+  if (m.kind === "fail") return ["Manager", "Error"];
+  return [displayName(m.agentType, true), m.kind === "assign" ? "Assigned" : "Done"];
+}
+
+/** `wall`: the desktop wallpaper. English names only, no task texts, a short ticker instead of the log. */
+export function OrgBoard({ variant }: { variant: "full" | "compact" | "wall" }) {
   const org = useWorldStore((s) => s.org);
   const backend = useWorldStore((s) => s.backend);
   const [flash, addFlash] = useFlashes();
-  const layout = useMemo(() => layoutOrg(org ?? EMPTY, flash), [org, flash]);
+  const wall = variant === "wall";
+  const layout = useMemo(() => layoutOrg(org ?? EMPTY, flash, wall), [org, flash, wall]);
   const layoutRef = useRef<OrgLayout>(layout);
   useLayoutEffect(() => {
     layoutRef.current = layout;
@@ -144,7 +154,7 @@ export function OrgBoard({ variant }: { variant: "full" | "compact" }) {
     // The whole chart fits the box both ways (no scrolling across), centred across.
     const fit = () => {
       const w = el.clientWidth;
-      const s = Math.min(variant === "full" ? 1.05 : 1, w / STAGE_W, el.clientHeight / layoutRef.current.height);
+      const s = Math.min(variant === "compact" ? 1 : variant === "wall" ? 1.4 : 1.05, w / STAGE_W, el.clientHeight / layoutRef.current.height);
       setScale(s);
       setOffset(Math.max(0, (w - STAGE_W * s) / 2));
     };
@@ -223,7 +233,7 @@ export function OrgBoard({ variant }: { variant: "full" | "compact" }) {
         {dots.map((n) => (
           <Dot key={n.id} n={n} />
         ))}
-        {layout.empty && org ? (
+        {layout.empty && org && !wall ? (
           <p className="ob-note" style={{ top: height / 2 - 30 }}>
             Chưa thấy file agent nào trong thư mục .claude\agents của thư mục làm việc. Các phòng sẽ tự hiện khi Tổ có agent hoặc khi một agent bắt đầu chạy.
           </p>
@@ -231,6 +241,33 @@ export function OrgBoard({ variant }: { variant: "full" | "compact" }) {
       </div>
     </div>
   );
+
+  if (wall) {
+    const ticker = (org?.moves ?? []).slice(-4).reverse();
+    return (
+      <div className="ob ob-wall" data-testid="org-wall">
+        <header className="ob-wall-head">
+          <span className="ob-wall-title">OPS BOARD</span>
+          <span className="ob-wall-meters">
+            <b className={counts.on ? "on" : undefined}>{counts.on}</b> working
+            <b className={counts.wait ? "wait" : undefined}>{counts.wait}</b> waiting
+            <b className={counts.err ? "err" : undefined}>{counts.err}</b> error
+          </span>
+        </header>
+        <div className="ob-wall-board">{stage}</div>
+        <ul className="ob-ticker">
+          {ticker.map((m) => {
+            const [who, what] = wallLine(m);
+            return (
+              <li key={m.seq} className={LOG_KIND[m.kind]}>
+                <time>{clock(m.at)}</time> - <span>{who}</span> - <em>{what}</em>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
 
   if (variant === "compact") {
     return (
