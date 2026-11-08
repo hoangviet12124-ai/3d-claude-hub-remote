@@ -256,6 +256,7 @@ export function OrgBoard({ variant }: { variant: "full" | "compact" | "wall" }) 
         </header>
         <div className="ob-wall-board">{stage}</div>
         <ul className="ob-ticker">
+          {ticker.length === 0 ? <li className="idle">--:--:-- - Standby - no activity yet</li> : null}
           {ticker.map((m) => {
             const [who, what] = wallLine(m);
             return (
