@@ -434,6 +434,23 @@
 .ob-flow.back {
   stroke: var(--ob-ret);
 }
+.ob-stream {
+  fill: none;
+  stroke: color-mix(in srgb, var(--acc) 85%, white);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1 17;
+  filter: drop-shadow(0 0 3px var(--acc));
+  animation: ob-stream 0.9s linear infinite;
+}
+@keyframes ob-stream {
+  from {
+    stroke-dashoffset: 18;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 @keyframes ob-scan {
   from {
     background-position: 200% 0;
@@ -451,6 +468,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .ob-stream,
   .ob-card.on::after,
   .ob-card.wait,
   .ob-dot.wait {

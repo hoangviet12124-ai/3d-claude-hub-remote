@@ -225,6 +225,12 @@ export function OrgBoard({ variant }: { variant: "full" | "compact" | "wall" }) 
           {edges.map((e) => (
             <path key={e.key} className={`ob-edge${e.sub ? " sub" : ""}${e.live ? " live" : ""}`} d={e.d} style={{ ["--acc" as string]: e.acc }} />
           ))}
+          {/* While a job runs, small lights keep streaming along its line, from who handed it over to who works on it. */}
+          {edges
+            .filter((e) => e.live && !e.sub)
+            .map((e) => (
+              <path key={`s:${e.key}`} className="ob-stream" d={e.d} style={{ ["--acc" as string]: e.acc }} />
+            ))}
           <g ref={flowRef} filter="url(#ob-glow)" />
         </svg>
         {cards.map((n) => (
