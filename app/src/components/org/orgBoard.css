@@ -601,6 +601,10 @@
   background-image: radial-gradient(circle, var(--ob-dots) 1.1px, transparent 1.4px);
   background-size: 20px 20px;
 }
+.ob-wall-board .ob-canvas {
+  min-width: 0;
+  min-height: 0;
+}
 /* Activity sits in the empty band at the right of the chart, halfway down. */
 .ob-wall-side {
   flex: 0 0 330px;
@@ -647,4 +651,21 @@
 }
 .ob-ticker li.k-bad em {
   color: var(--ob-bad);
+}
+
+/* A narrow window (a side panel, not a wallpaper): give the chart the full
+   width and put Activity under it. */
+@media (max-width: 1400px) {
+  .ob-wall {
+    padding: 14px 16px 16px;
+  }
+  .ob-wall-board {
+    flex-direction: column;
+    padding-left: 0;
+    gap: 10px;
+  }
+  .ob-wall-side {
+    flex: 0 0 auto;
+    align-self: stretch;
+  }
 }
