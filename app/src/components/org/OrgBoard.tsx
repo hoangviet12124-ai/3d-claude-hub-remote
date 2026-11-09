@@ -225,7 +225,7 @@ export function OrgBoard({ variant }: { variant: "full" | "compact" | "wall" }) 
           {edges.map((e) => (
             <path key={e.key} className={`ob-edge${e.sub ? " sub" : ""}${e.live ? " live" : ""}`} d={e.d} style={{ ["--acc" as string]: e.acc }} />
           ))}
-          <g ref={flowRef} filter="url(#ob-glow)" />
+          <g ref={flowRef} filter={wall ? undefined : "url(#ob-glow)"} />
         </svg>
         {cards.map((n) => (
           <Card key={n.id} n={n} />

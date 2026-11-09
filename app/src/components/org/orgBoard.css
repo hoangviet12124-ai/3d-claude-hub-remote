@@ -630,3 +630,32 @@
 .ob-ticker li.k-bad em {
   color: var(--ob-bad);
 }
+
+/* The wallpaper runs all day: no endless animations (the moving scan line, the pulsing amber), no blur.
+   Lamps still change colour and light still runs along a line when work is handed over. */
+.ob-wall .ob-card.on::after {
+  animation: none;
+  background: var(--acc);
+  opacity: 0.6;
+}
+.ob-wall .ob-card.wait,
+.ob-wall .ob-dot.wait {
+  animation: none;
+}
+.ob-wall .ob-card,
+.ob-wall .ob-card.on,
+.ob-wall .ob-card.wait,
+.ob-wall .ob-card.err {
+  box-shadow: none;
+  transition: none;
+}
+.ob-wall .ob-card.on {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 30%, transparent);
+}
+.ob-wall .ob-dot {
+  transition: none;
+}
+.ob-wall .ob-dot.on,
+.ob-wall .ob-dot.wait {
+  box-shadow: none;
+}
