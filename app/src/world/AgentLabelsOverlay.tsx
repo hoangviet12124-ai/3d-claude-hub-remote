@@ -7,6 +7,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useWorldStore } from "@/state/useWorldStore";
 import { labelAnchors } from "@/world/labelAnchors";
 import { useRenderCount } from "@/world/renderCounts";
+import { AGENT_STATUS_LABEL } from "@/components/ui";
 
 /**
  * DOM speech bubbles (§6.4, pitfall 1: never drei `<Html>`). Content and visibility rules come from the
@@ -63,8 +64,8 @@ function placeAll(els: Map<AgentId, HTMLDivElement>): void {
 }
 
 /**
- * Why a robot may have a bubble at all: it is selected, hovered or paused, or (with speech indicators on)
- * it is talking, celebrating or reporting an error. Idle, walking, working and thinking robots have none.
+ * Mọi robot luôn có thẻ tên (tên + trạng thái), như bản vẽ mẫu. Dòng việc đang làm chỉ hiện khi robot được
+ * chọn, được trỏ chuột, đang tạm dừng, hoặc (bật lời thoại) đang trao đổi, báo xong, báo vướng.
  */
 type BubbleAgent = Pick<AgentState, "id" | "status" | "paused" | "activity">;
 
@@ -78,7 +79,7 @@ function parseBubbleKey(key: string): BubbleAgent {
   return { id, status, paused, activity };
 }
 
-function wantsBubble(a: BubbleAgent, selected: AgentId | null, hovered: string | null, speech: boolean): boolean {
+function wantsActivity(a: BubbleAgent, selected: AgentId | null, hovered: string | null, speech: boolean): boolean {
   if (selected === a.id || hovered === `agent:${a.id}` || a.paused) return true;
   return speech && SPEECH_STATUSES.has(a.status);
 }
@@ -110,9 +111,10 @@ export function AgentLabelsOverlay() {
     <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden" aria-hidden="true" data-testid="agent-labels">
       {AGENTS.map((p) => {
         const a = byId.get(p.id);
-        if (!a || !wantsBubble(a, selected, hovered, speech)) return null;
+        if (!a) return null;
         const tone = a.paused ? "" : a.status === "success" ? " agent-bubble-success" : a.status === "error" ? " agent-bubble-error" : "";
-        const text = a.paused ? "Paused" : a.activity;
+        const state = a.paused ? "Tạm dừng" : AGENT_STATUS_LABEL[a.status];
+        const text = wantsActivity(a, selected, hovered, speech) && !a.paused ? a.activity : "";
         return (
           <div
             key={p.id}
@@ -123,11 +125,14 @@ export function AgentLabelsOverlay() {
               } else els.current.delete(p.id);
             }}
             className={`agent-bubble${tone}`}
-            style={{ visibility: "hidden", transformOrigin: "50% 100%" }}
+            style={{ visibility: "hidden", transformOrigin: "50% 100%", ["--agent" as string]: p.color }}
             data-agent={p.id}
           >
-            <span className="agent-bubble-dot" style={{ background: p.color, boxShadow: `0 0 8px ${p.color}` }} />
-            <span className="agent-bubble-name">{p.name}</span>
+            <span className="agent-bubble-row">
+              <span className="agent-bubble-dot" style={{ background: p.color }} />
+              <span className="agent-bubble-name">{p.name}</span>
+              <span className="agent-bubble-state">{state.toUpperCase()}</span>
+            </span>
             {text ? <span className="agent-bubble-activity">{text}</span> : null}
           </div>
         );

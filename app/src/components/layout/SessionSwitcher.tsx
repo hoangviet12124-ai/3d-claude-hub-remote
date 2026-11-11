@@ -54,7 +54,7 @@ export function SessionSwitcher({ variant }: { variant: "bar" | "compact" }) {
   const badge =
     busy.count > 0 ? (
       <span
-        className={`inline-flex h-4 min-w-4 flex-none items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold tabular-nums ${busy.waiting ? "bg-warn text-ink-950" : "bg-signal/25 text-signal-strong"}`}
+        className={`inline-flex h-4 min-w-4 flex-none items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold tabular-nums ${busy.waiting ? "bg-warn text-white" : "bg-signal/25 text-signal-strong"}`}
         aria-label={`${busy.count} other session${busy.count === 1 ? "" : "s"} active${busy.waiting ? `, ${busy.waiting} waiting for you` : ""}`}
         data-testid="session-switcher-badge"
       >
@@ -77,7 +77,7 @@ export function SessionSwitcher({ variant }: { variant: "bar" | "compact" }) {
         >
           {focused ? <SessionDot status={focused.status} /> : null}
           <span className="min-w-0 truncate text-[12px] text-mist-300">
-            <span className="text-mist-500">{pinned ? "Pinned: " : "Following: "}</span>
+            <span className="text-mist-500">{pinned ? "Đã ghim: " : "Đang theo dõi: "}</span>
             <span className="font-medium text-mist-100">{focused?.title ?? "No session"}</span>
             {focused?.project ? <span className="text-mist-500"> · {focused.project}</span> : null}
           </span>

@@ -5,17 +5,18 @@ import { ShieldAlert, ShieldCheck } from "lucide-react";
 import type { SessionPermissionMode } from "@/integrations/AgentBackend";
 
 export const MODE_INFO: Record<SessionPermissionMode, { label: string; hint: string }> = {
-  default: { label: "Ask me", hint: "Claude asks before tools that need permission." },
-  acceptEdits: { label: "Accept edits", hint: "File edits run without asking; commands and the rest still ask." },
-  auto: { label: "Auto", hint: "Claude Code's classifier approves or denies; it asks you only when unsure." },
-  plan: { label: "Plan only", hint: "Claude explores and writes a plan; nothing is changed or run." },
-  dontAsk: { label: "Don't ask", hint: "Only what your settings already allow runs; everything else is denied." },
+  default: { label: "Hỏi anh trước", hint: "Claude hỏi anh trước khi dùng công cụ cần cấp quyền." },
+  acceptEdits: { label: "Tự sửa file", hint: "Sửa file không cần hỏi; chạy lệnh và việc khác vẫn hỏi." },
+  auto: { label: "Tự động", hint: "Bộ lọc của Claude Code tự duyệt hoặc chặn; chỉ hỏi anh khi không chắc." },
+  plan: { label: "Chỉ lập kế hoạch", hint: "Claude đọc và viết kế hoạch; không sửa, không chạy gì." },
+  dontAsk: { label: "Không hỏi", hint: "Chỉ chạy những gì cài đặt đã cho phép; còn lại bị từ chối." },
   bypassPermissions: { label: "Bypass", hint: "Every tool runs without any check. Use only in a throwaway folder." },
 };
 
-const LAST_MODE_KEY = "aaw.permissionMode";
+// v2: from 04/11 the default is "Tự sửa file" (Việt chose it); a pick made before that is not carried over.
+const LAST_MODE_KEY = "aaw.permissionMode.v2";
 
-/** The mode last picked in this browser (never bypass: that is always a deliberate choice). */
+/** The mode last picked in this browser, else "Tự sửa file" (never bypass: that is always a deliberate choice). */
 export function rememberedMode(allowed: readonly SessionPermissionMode[]): SessionPermissionMode {
   try {
     const m = localStorage.getItem(LAST_MODE_KEY) as SessionPermissionMode | null;
@@ -23,7 +24,7 @@ export function rememberedMode(allowed: readonly SessionPermissionMode[]): Sessi
   } catch {
     // storage blocked
   }
-  return "default";
+  return allowed.includes("acceptEdits") ? "acceptEdits" : "default";
 }
 
 function remember(mode: SessionPermissionMode): void {
@@ -64,7 +65,7 @@ export function PermissionModePicker({
       <div className="flex items-center gap-2">
         <label htmlFor={id} className="flex flex-none items-center gap-1 text-[11.5px] text-mist-500">
           {danger ? <ShieldAlert size={13} className="text-bad" aria-hidden /> : <ShieldCheck size={13} aria-hidden />}
-          Permissions
+          Quyền
         </label>
         <select
           id={id}

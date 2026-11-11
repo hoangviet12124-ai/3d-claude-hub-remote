@@ -26,7 +26,7 @@ function OwnerLine({ task }: { task: Task }) {
       </span>
     );
   }
-  const text = task.phase === "queued" ? "Waiting for orchestrator" : task.phase === "done" ? "Shipped" : task.phase === "failed" ? "Failed" : PHASE_LABEL[task.phase];
+  const text = task.phase === "queued" ? "Chờ Manager nhận" : task.phase === "done" ? "Hoàn thành, chờ anh Việt duyệt" : task.phase === "failed" ? "Dừng" : PHASE_LABEL[task.phase];
   return <span className="truncate text-[12px] text-mist-500">{text}</span>;
 }
 

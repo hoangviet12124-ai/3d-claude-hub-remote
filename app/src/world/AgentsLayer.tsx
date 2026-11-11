@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Robots } from "@/agents/AgentCharacter";
 import { AGENTS, getAgent } from "@/agents/AgentRegistry";
-import type { AgentId } from "@/agents/agentTypes";
+import type { AgentId, CarryKind } from "@/agents/agentTypes";
 import type { CommLink } from "@/integrations/AgentBackend";
 import { SIM_CONFIG } from "@/simulation/simulationConfig";
 import { liveWorld, useWorldStore } from "@/state/useWorldStore";
@@ -536,6 +536,58 @@ function agentsDisabled(): boolean {
   return typeof window !== "undefined" && new URLSearchParams(window.location.search).has("noagents");
 }
 
+// ───────────────────────── carried items ─────────────────────────
+
+/** Màu thứ đang cầm: văn bản (màu Thủ thư), hồ sơ cũ (màu Số hóa), báo cáo đưa sang QA (trắng ngà). */
+const CARRY_COLOR: Record<CarryKind, THREE.Color> = {
+  docs: new THREE.Color(getAgent("iris").color),
+  records: new THREE.Color(getAgent("piper").color),
+  report: new THREE.Color("#fff1d6"),
+};
+
+/**
+ * Tài nguyên nghiên cứu hoặc báo cáo mà trợ lý mang khi đi giữa Kho, phòng KT XDCB và phòng QA: một khối
+ * phát sáng xoay chậm trên đầu mỗi agent đang mang. Một InstancedMesh, cập nhật trong `useFrame`.
+ */
+function CarriedItems() {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const material = additive("carry", { opacity: 0.95 });
+  useLayoutEffect(() => {
+    const m = ref.current;
+    if (!m) return;
+    for (let i = 0; i < AGENTS.length; i++) {
+      m.setMatrixAt(i, hidden);
+      m.setColorAt(i, CARRY_COLOR.report);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  }, []);
+  useFrame((state, rawDt) => {
+    updateAgentMotion(state.clock.elapsedTime, Math.min(rawDt, 0.1));
+    const m = ref.current;
+    if (!m) return;
+    const t = state.clock.elapsedTime;
+    const reduced = useWorldStore.getState().reducedMotion;
+    AGENTS.forEach((a, i) => {
+      const d = agentDisplay.get(a.id);
+      const what = d?.state?.carrying;
+      if (!d || !d.init || !what) {
+        m.setMatrixAt(i, hidden);
+        return;
+      }
+      // Đội trên đầu, hơi nhấp nhô: nhìn từ toàn cảnh vẫn thấy ai đang mang gì.
+      const bob = reduced ? 0 : Math.sin(t * 5 + i) * 0.05;
+      tmpV.set(d.x, d.labelY * 0.86 + bob, d.z);
+      tmpQ.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, d.heading + (reduced ? 0 : t * 1.2));
+      tmpS.set(what === "report" ? 0.42 : 0.46, what === "report" ? 0.52 : 0.32, 0.12);
+      m.setMatrixAt(i, tmpM.compose(tmpV, tmpQ, tmpS));
+      m.setColorAt(i, tmpC.copy(CARRY_COLOR[what]));
+    });
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  });
+  return <instancedMesh ref={ref} args={[geometries.box(), material, AGENTS.length]} frustumCulled={false} />;
+}
+
 // ───────────────────────── layer ─────────────────────────
 
 /** The robots, trails and arcs. The bubble anchors are a separate component that must run after the camera. */
@@ -553,6 +605,7 @@ export function AgentsLayer() {
         <PathTrail key={a.id} id={a.id} />
       ))}
       <CommLinks />
+      <CarriedItems />
     </group>
   );
 }

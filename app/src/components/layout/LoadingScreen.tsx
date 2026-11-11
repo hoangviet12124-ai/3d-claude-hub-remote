@@ -39,13 +39,13 @@ export function LoadingScreen() {
       style={{ transitionDuration: `${FADE_MS}ms` }}
       aria-hidden={finished}
       role="status"
-      aria-label="Loading 3D Claude Hub Remote"
+      aria-label="Đang mở Văn phòng Tổ giúp việc"
       data-testid="loading-screen"
     >
       <div className="flex flex-col items-center gap-5">
         <Logo size={56} />
         <div className="text-center">
-          <p className="text-[17px] font-semibold tracking-tight text-mist-100">3D Claude Hub Remote</p>
+          <p className="text-[17px] font-semibold tracking-tight text-mist-100">Tổ giúp việc · Trung tâm điều hành</p>
           <p className={`mt-1 text-[12px] ${caps.simulated ? "text-warn" : "text-mist-300"}`}>{caps.modeLine}</p>
         </div>
         <ol className="flex w-64 flex-col gap-2">

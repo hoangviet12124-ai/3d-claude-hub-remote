@@ -292,7 +292,7 @@ export async function startWorldServer(options: WorldServerOptions): Promise<Wor
             sessions: !!hub && hasToken,
             control: !!hub?.control && hasToken,
             locked: !!hub && !hasToken,
-            ...(hub?.control && hasToken ? { permissionModes: hub.permissionModes } : {}),
+            ...(hub?.control && hasToken ? { permissionModes: hub.permissionModes, ...(hub.workdir ? { workdir: hub.workdir } : {}) } : {}),
           },
         });
         const snap = latest ?? backend.getSnapshot();

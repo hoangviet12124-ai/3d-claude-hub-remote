@@ -128,6 +128,47 @@ export function supervise(name, paint, cmd, args, cwd, env = {}) {
   return child;
 }
 
+/**
+ * Stop a child started by `supervise` and everything under it. On Windows the child is the cmd.exe that `shell: true`
+ * puts in front of npm, so `kill()` would end only that shell and leave node holding its port (seen 04/11: an orphaned
+ * world server kept 8787 and every autostart retry failed); `taskkill /T` ends the whole tree.
+ */
+export function killTree(child) {
+  if (child.exitCode !== null || !child.pid) return;
+  if (WIN) {
+    try {
+      spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+      return;
+    } catch {
+      // fall through to a plain kill
+    }
+  }
+  child.kill("SIGINT");
+}
+
+/**
+ * Windows only: if the program listening on `port` is one this repo started (its command line runs a file under
+ * `ownDir`), end it and its children and return true. A world server or app left behind by a crash then no longer
+ * blocks the next start. Anything else on the port is left alone (returns false).
+ */
+export function freeOwnPort(port, ownDir) {
+  if (!WIN) return false;
+  const net = spawnSync("netstat", ["-ano", "-p", "tcp"], { encoding: "utf8", windowsHide: true });
+  const line = (net.stdout || "").split(/\r?\n/).find((l) => /LISTENING/i.test(l) && new RegExp(`[:.]${port}\\s`).test(l));
+  const pid = line?.trim().split(/\s+/).pop();
+  if (!pid || !/^\d+$/.test(pid)) return false;
+  const ps = spawnSync(
+    "powershell.exe",
+    ["-NoProfile", "-Command", `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").CommandLine`],
+    { encoding: "utf8", windowsHide: true },
+  );
+  const cmdline = (ps.stdout || "").trim();
+  const own = ownDir.replaceAll("/", "\\").toLowerCase();
+  if (!cmdline || !(cmdline.toLowerCase().includes(own) || /server[\\/]main\.ts|next(\.cmd)?["']? start/i.test(cmdline) && cmdline.toLowerCase().includes("vanphongao"))) return false;
+  spawnSync("taskkill", ["/PID", pid, "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  return true;
+}
+
 export function openBrowser(url) {
   const cmd = process.platform === "darwin" ? "open" : WIN ? "cmd" : "xdg-open";
   const args = WIN ? ["/c", "start", "", url] : [url];

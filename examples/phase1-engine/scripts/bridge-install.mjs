@@ -7,7 +7,7 @@
 // user     ~/.claude/settings.json            (every project)
 // project  DIR/.claude/settings.local.json    (one project; not committed)
 //
-// Only handlers whose command ends in bridge/forward-hook.sh are ever added or removed. Every other hook,
+// Only handlers whose command runs bridge/forward-hook.mjs (or the older forward-hook.sh) are ever added or removed. Every other hook,
 // and every other setting, is left exactly as it was. The file is backed up before each change.
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -20,13 +20,48 @@ export const EVENTS = [
   "Stop", "StopFailure", "SubagentStart", "SubagentStop", "Notification", "PreCompact",
   "PermissionRequest", "PermissionDenied",
 ];
-// Forward slashes: on Windows Claude Code runs hook commands in Git Bash, where `\` is an escape character.
-export const FORWARDER = resolve(join(dirname(fileURLToPath(import.meta.url)), "..", "bridge", "forward-hook.sh")).replaceAll("\\", "/");
-const isOurs = (h) => typeof h?.command === "string" && h.command.replaceAll("\\", "/").replace(/'$/, "").endsWith("bridge/forward-hook.sh");
+// Forward slashes: on Windows the hook command may run in Git Bash, where `\` is an escape character.
+const slash = (p) => p.replaceAll("\\", "/");
+export const FORWARDER = slash(resolve(join(dirname(fileURLToPath(import.meta.url)), "..", "bridge", "forward-hook.mjs")));
+const isOurs = (h) =>
+  typeof h?.command === "string" &&
+  (h.command.includes(PORTABLE_MARK) || /bridge\/forward-hook\.(sh|mjs)$/.test(h.command.replaceAll("\\", "/").replace(/['"]$/, "")));
 
-/** The forwarder path as one shell word: Claude Code runs hook commands through a shell (Git Bash on Windows). */
+/** Tags the portable command so status and uninstall can find it. */
+export const PORTABLE_MARK = "aaw-forward-hook";
+
+/**
+ * forward-hook.mjs as one `node -e` line that names no file: the same settings file then works on every machine
+ * that syncs the folder (e.g. a OneDrive folder used from an office PC and a laptop), whatever the user name or
+ * where the repo is. Written so cmd, PowerShell and Git Bash all pass it unchanged: inside the double quotes there
+ * is no $, `, %, !, backslash or double quote. Prints nothing and always exits 0.
+ */
+export const PORTABLE_COMMAND =
+  "node -e \"const m='" + "aaw-forward-hook" + "',o=require('os'),f=require('fs'),p=require('path');" +
+  "setTimeout(()=>process.exit(0),2500).unref();const c=[];" +
+  "process.stdin.on('data',d=>c.push(d)).on('end',async()=>{try{" +
+  "let t=process.env.AAW_TOKEN||'';" +
+  "if(t==='')try{t=f.readFileSync(p.join(o.homedir(),'.aaw','token'),'utf8').trim().split(String.fromCharCode(10))[0].trim()}catch(e){}" +
+  "const h={'Content-Type':'application/json'};if(t)h.Authorization='Bearer '+t;" +
+  "await fetch(process.env.AAW_HOOK_URL||'http://127.0.0.1:8787/hook',{method:'POST',headers:h,body:Buffer.concat(c),signal:AbortSignal.timeout(2000)}).then(r=>r.arrayBuffer())" +
+  "}catch(e){}process.exit(0)})\"";
+
+/**
+ * One path as one shell word. Double quotes work the same in Git Bash, cmd and PowerShell, so they are used when the
+ * path has nothing those shells would expand; otherwise POSIX single quotes (Git Bash, macOS, Linux).
+ */
 export function shellQuote(path) {
+  if (!/["$`%!\\]/.test(path)) return `"${path}"`;
   return `'${path.replaceAll("'", "'\\''")}'`;
+}
+
+/**
+ * `node "<forwarder>"`. A bare `node` first (the Node installer puts it on PATH) because a quoted program path would
+ * need `&` in front of it in PowerShell; the quoted path after it is a plain argument in every shell.
+ */
+export function hookCommand(forwarder = FORWARDER) {
+  if (forwarder === "portable") return PORTABLE_COMMAND;
+  return forwarder.endsWith(".sh") ? shellQuote(forwarder) : `node ${shellQuote(forwarder)}`;
 }
 
 export function settingsPath(scope, project, home = homedir()) {
@@ -60,7 +95,7 @@ export function withBridge(settings, forwarder = FORWARDER) {
   const next = withoutBridge(settings);
   next.hooks ??= {};
   for (const event of EVENTS) {
-    next.hooks[event] = [...(next.hooks[event] ?? []), { hooks: [{ type: "command", command: shellQuote(forwarder), async: true, timeout: 5 }] }];
+    next.hooks[event] = [...(next.hooks[event] ?? []), { hooks: [{ type: "command", command: hookCommand(forwarder), async: true, timeout: 5 }] }];
   }
   return next;
 }
@@ -102,7 +137,8 @@ function main() {
     console.error(`Unknown action ${action}; use status, install or uninstall.`);
     process.exit(2);
   }
-  const next = action === "install" ? withBridge(settings) : withoutBridge(settings);
+  // A project folder may be synced between machines (OneDrive): there the hook names no file, so it works on each.
+  const next = action === "install" ? withBridge(settings, values.scope === "project" ? "portable" : FORWARDER) : withoutBridge(settings);
   const out = JSON.stringify(next, null, indentOf(text)) + "\n";
   if (out === text) {
     console.log(`${file} already up to date.`);

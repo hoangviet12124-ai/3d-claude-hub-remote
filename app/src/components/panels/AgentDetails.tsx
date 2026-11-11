@@ -57,7 +57,7 @@ export function AgentDetails({ id, onBack }: { id: AgentId; onBack: () => void }
 
       <div className="flex flex-col gap-2 rounded-xl border border-mist-500/10 bg-ink-850/60 p-3">
         <span className="eyebrow">Now</span>
-        <p className="text-[13px] leading-snug text-mist-100">{agent?.paused ? "Paused" : agent?.activity || "Idle"}</p>
+        <p className="text-[13px] leading-snug text-mist-100">{agent?.paused ? "Tạm dừng" : agent?.activity || "Rảnh"}</p>
         {agent && (agent.status === "working" || agent.status === "thinking") && agent.progress > 0 ? <ProgressBar value={agent.progress} color={profile.color} /> : null}
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
           <dt className="text-mist-500">Location</dt>

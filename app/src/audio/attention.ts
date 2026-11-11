@@ -26,9 +26,9 @@ export function sessionOf(e: AgentEvent): { session?: string; project?: string; 
 
 export function attentionOf(e: AgentEvent): Attention | null {
   let base: Omit<Attention, "session" | "project"> | null = null;
-  if (e.agentId === "orion" && e.severity === "warning" && e.message.startsWith("Needs your permission")) {
+  if (e.agentId === "orion" && e.severity === "warning" && /^(Cần anh cấp quyền|Needs your permission)/.test(e.message)) {
     base = { badge: "⏳ Permission needed", body: e.message, kind: "permission" };
-  } else if (e.agentId === "orion" && e.severity === "warning" && e.message.startsWith("Claude Code needs you")) {
+  } else if (e.agentId === "orion" && e.severity === "warning" && /^(Claude cần anh|Claude Code needs you)/.test(e.message)) {
     base = { badge: "⏳ Needs you", body: e.message, kind: "input" };
   } else if (e.type === "task.completed") base = { badge: "✓ Turn ended", body: e.message, kind: "turn-ended" };
   else if (e.type === "task.failed") base = { badge: "✗ Stopped", body: e.message, kind: "stopped" };
@@ -93,7 +93,7 @@ export function permissionEvent(
     timestamp: nowMs,
     simTime,
     agentId: "orion",
-    message: `Needs your permission for ${what}`,
+    message: `Cần anh cấp quyền cho ${what}`,
     severity: "warning",
     feed: false,
   };

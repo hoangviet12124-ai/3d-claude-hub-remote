@@ -9,12 +9,12 @@ import { useWorldStore } from "@/state/useWorldStore";
 import { useRenderCount } from "@/world/renderCounts";
 
 export const NAV_ITEMS: { tab: PanelTab; label: string; icon: LucideIcon }[] = [
-  { tab: "overview", label: "Overview", icon: LayoutDashboard },
-  { tab: "agents", label: "Agents", icon: Bot },
-  { tab: "tasks", label: "Tasks", icon: ListChecks },
-  { tab: "activity", label: "Activity", icon: Activity },
-  { tab: "sessions", label: "Sessions", icon: MessagesSquare },
-  { tab: "settings", label: "Settings", icon: Settings },
+  { tab: "overview", label: "Tổng quan", icon: LayoutDashboard },
+  { tab: "agents", label: "Nhân sự", icon: Bot },
+  { tab: "tasks", label: "Công việc", icon: ListChecks },
+  { tab: "activity", label: "Hội thoại", icon: Activity },
+  { tab: "sessions", label: "Phiên AI", icon: MessagesSquare },
+  { tab: "settings", label: "Cài đặt", icon: Settings },
 ];
 
 // Rounded so server and client render identical attribute strings (no hydration mismatch).
@@ -26,12 +26,12 @@ const LOGO_DOTS = ["#E8B04A", "#5CC8D7", "#A78BFA", "#6C9EFF", "#5FD39A", "#F08A
 export function Logo({ size = 36 }: { size?: number }) {
   return (
     <span
-      className="inline-flex flex-none items-center justify-center rounded-[11px] border border-signal/30"
-      style={{ width: size, height: size, background: "radial-gradient(circle at 30% 25%, rgb(154 215 230 / 0.35), rgb(14 19 27 / 0.9) 70%)" }}
+      className="inline-flex flex-none items-center justify-center rounded-[3px] border-[1.5px] border-line"
+      style={{ width: size, height: size, background: "#ffffff" }}
       aria-hidden
     >
       <svg width={size * 0.58} height={size * 0.58} viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="3.2" fill="#9ad7e6" />
+        <circle cx="12" cy="12" r="3.2" fill="#1f2db8" />
         {LOGO_DOTS.map((d) => (
           <circle key={d.fill} cx={d.cx} cy={d.cy} r="2" fill={d.fill} />
         ))}
@@ -81,10 +81,10 @@ export const NavRail = forwardRef<HTMLElement>(function NavRail(_props, ref) {
             <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
             <span className="text-[9.5px] font-semibold lg:sr-only phl:sr-only">{label}</span>
             {id === "tasks" && taskCount > 0 ? (
-              <span className="absolute right-1 top-1 min-w-4 rounded-full bg-signal px-1 text-center font-mono text-[9px] font-bold leading-4 text-ink-950">{taskCount}</span>
+              <span className="absolute right-1 top-1 min-w-4 rounded-full bg-signal px-1 text-center font-mono text-[9px] font-bold leading-4 text-white">{taskCount}</span>
             ) : null}
             {id === "sessions" && asks > 0 ? (
-              <span className="absolute right-1 top-1 min-w-4 rounded-full bg-warn px-1 text-center font-mono text-[9px] font-bold leading-4 text-ink-950" aria-label={`${asks} permission ${asks === 1 ? "ask" : "asks"} waiting`}>
+              <span className="absolute right-1 top-1 min-w-4 rounded-full bg-warn px-1 text-center font-mono text-[9px] font-bold leading-4 text-white" aria-label={`${asks} permission ${asks === 1 ? "ask" : "asks"} waiting`}>
                 {asks}
               </span>
             ) : null}
