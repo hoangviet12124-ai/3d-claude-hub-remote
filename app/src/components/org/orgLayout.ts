@@ -44,10 +44,13 @@ const nameOf = (d: Dept) => ({ label: w(d.label, d.en[0]), head: w(d.head, d.en[
 
 const QA_MATCH = /^qa$|^qa-|-qa$|kiem-tra/;
 const SOHOA_MATCH = /so-hoa/;
+/** Chuyên gia thẩm định: independent, called after QA, so it hangs under the QA card. */
+const TD_MATCH = /tham-dinh/;
 
 /** Which card an agent type's runs light: "qa", "sohoa", or a department key. */
 export function unitOf(agentType: string): string {
   const t = agentType.toLowerCase();
+  if (TD_MATCH.test(t)) return "td";
   if (QA_MATCH.test(t)) return "qa";
   if (SOHOA_MATCH.test(t)) return "sohoa";
   return (DEPTS.find((d) => d.match.test(t)) ?? OTHER).key;
@@ -58,11 +61,13 @@ export function displayName(agentType: string, english = false): string {
   const u = unitOf(agentType);
   if (english) {
     if (u === "qa") return "QA";
+    if (u === "td") return "Expert Review";
     if (u === "sohoa") return "Digitizer";
     if (u === "kho") return "Librarian";
     return ([...DEPTS, OTHER].find((x) => x.key === u) ?? OTHER).en[0];
   }
   if (u === "qa") return "QA";
+  if (u === "td") return "Chuyên gia thẩm định";
   if (u === "sohoa") return "Số hóa";
   if (u === "kho") return "Thủ thư";
   if (u === "rnd") return "R&D";
@@ -73,6 +78,7 @@ export function displayName(agentType: string, english = false): string {
 /** The cards a flow passes from the Manager to the card of that agent type. */
 export function pathTo(agentType: string): string[] {
   const u = unitOf(agentType);
+  if (u === "td") return ["mgr", "qa", "td"];
   return u === "sohoa" ? ["mgr", "kho", "sohoa"] : ["mgr", u];
 }
 
@@ -190,8 +196,10 @@ export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set(),
     byUnit.set(u, [...(byUnit.get(u) ?? []), r]);
   }
   const haveUnit = new Set<string>([...org.agents.map(unitOf), ...byUnit.keys()]);
+  // The expert hangs under QA: draw QA whenever the expert is there.
+  if (haveUnit.has("td")) haveUnit.add("qa");
   const deptKeys = new Set<string>();
-  for (const u of haveUnit) if (u !== "qa") deptKeys.add(u === "sohoa" ? "kho" : u);
+  for (const u of haveUnit) if (u !== "qa" && u !== "td") deptKeys.add(u === "sohoa" ? "kho" : u);
   const depts = [...DEPTS, OTHER].filter((d) => deptKeys.has(d.key));
 
   const rows = depts.length;
@@ -204,7 +212,7 @@ export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set(),
   const flashed = (id: string, s: OrgLamp): Lamp => (s === "off" && flash.has(id) ? "done" : s);
 
   // Boss and the Manager sit in the middle of the rows; QA hangs below the Manager.
-  const midY = Math.round(height / 2 - CARD_H / 2) - (haveUnit.has("qa") ? 50 : 0);
+  const midY = Math.round(height / 2 - CARD_H / 2) - (haveUnit.has("qa") ? 50 : 0) - (haveUnit.has("td") ? 50 : 0);
   const boss: CardNode = {
     kind: "card", id: "boss", x: 30, y: midY, w: 140, title: "Boss", icon: "boss", acc: "#fcd34d", idle: w("giao việc", "ready"),
     state: flash.has("boss:on") ? "on" : flash.has("boss") ? "done" : "off", status: "", tip: "", ports: { in: false, out: true },
@@ -228,9 +236,22 @@ export function layoutOrg(org: OrgState, flash: ReadonlySet<string> = new Set(),
     cards.push({
       kind: "card", id: "qa", x: 245, y: midY + 148, w: 140, title: "QA", icon: "shield", acc: "#a3e635", idle: w("rảnh", "idle"), state,
       status: state === "done" ? w("xong", "done") : statusOf(l.state, l.task, w("rảnh", "idle"), l.raw), tip: `QA: ${stateWord(state)}${l.task ? ` · ${l.task}` : ""}`,
-      ports: { in: false, out: false, up: true },
+      ports: { in: false, out: false, up: true, down: haveUnit.has("td") },
     });
     edges.push({ key: "mgr>qa", from: "mgr", to: "qa", d: `M315,${midY + CARD_H} C315,${midY + 98} 315,${midY + 108} 315,${midY + 148}`, acc: "#a3e635", sub: true, live: lit(state) });
+  }
+
+  if (haveUnit.has("td")) {
+    const runs = byUnit.get("td") ?? [];
+    const l = unitLamp(runs);
+    const state = flashed("td", l.state);
+    const title = w("Thẩm định", "Expert Review");
+    cards.push({
+      kind: "card", id: "td", x: 225, y: midY + 250, w: 180, title, icon: "shield", acc: "#fbbf24", idle: w("rảnh", "idle"), state,
+      status: state === "done" ? w("xong", "done") : statusOf(l.state, l.task, w("rảnh", "idle"), l.raw), tip: `${title}: ${stateWord(state)}${l.task ? ` · ${l.task}` : ""}`,
+      ports: { in: false, out: false, up: true },
+    });
+    edges.push({ key: "qa>td", from: "qa", to: "td", d: `M315,${midY + 148 + CARD_H} C315,${midY + 222} 315,${midY + 230} 315,${midY + 250}`, acc: "#fbbf24", sub: true, live: lit(state) });
   }
 
   depts.forEach((dept, i) => {

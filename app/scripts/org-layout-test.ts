@@ -27,6 +27,15 @@ check("nothing yet: only Boss and the Manager", layoutOrg({ ...base, agents: [] 
 
 console.log("\nLamps");
 const run = (id: string, agentType: string, task: string, state: "on" | "wait" | "err" = "on") => ({ id, agentType, task, state, since: 1 });
+const tdBase = { ...base, agents: [...agents, "chuyen-gia-tham-dinh"] };
+let td = layoutOrg(tdBase);
+const tdCard = td.cards.find((c) => c.id === "td");
+const qaCard = td.cards.find((c) => c.id === "qa")!;
+check("Chuyên gia thẩm định hangs under QA, not in a department", unitOf("chuyen-gia-tham-dinh") === "td" && !!tdCard && tdCard.y > qaCard.y && !td.groups.some((g) => g.key === "khac"));
+check("a flow to the expert passes QA", pathTo("chuyen-gia-tham-dinh").join(">") === "mgr>qa>td" && td.edges.some((e) => e.from === "qa" && e.to === "td"));
+td = layoutOrg({ ...tdBase, runs: [run("t", "chuyen-gia-tham-dinh", "Thẩm định HSMT")] }, new Set(), true);
+check("wallpaper: the expert is \"Expert Review\", no task", td.cards.find((c) => c.id === "td")!.title === "Expert Review" && !JSON.stringify(td).includes("HSMT") && displayName("chuyen-gia-tham-dinh", true) === "Expert Review");
+check("every card fits the stage height", td.cards.every((c) => c.y >= 0 && c.y + 56 <= td.height));
 l = layoutOrg({ ...base, manager: { state: "on", task: "Rà hồ sơ" }, runs: [run("a", "truong-phong-xdcb", "Khối lượng")] });
 const head = l.cards.find((c) => c.id === "xdcb")!;
 check("one run lights the head with its task", head.state === "on" && head.status === "Khối lượng");
